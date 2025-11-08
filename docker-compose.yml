@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  database:
+    image: timescale/timescaledb:latest-pg14
+    container_name: cattle-db
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=virtual_fencing_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d virtual_fencing_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: cattle-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - DATABASE_URL=postgres://user:password@database:5432/virtual_fencing_db
+    depends_on:
+      database:
+        condition: service_healthy
+    volumes:
+      - ./backend:/usr/src/app
+      - /usr/src/app/node_modules
+
+  frontend:
+    build: ./frontend
+    container_name: cattle-frontend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/src:/app/src
+
+volumes:
+  db-data:
