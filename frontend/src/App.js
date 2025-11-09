@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { MapContainer, TileLayer, Polygon, Marker, Popup } from 'react-leaflet';
-import { FeatureGroup } from 'react-leaflet';
-import { EditControl } from 'react-leaflet-draw';
+import { MapContainer, TileLayer, Polygon, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import 'leaflet-draw';
 import './App.css';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
@@ -29,6 +28,57 @@ const API_URL = 'http://localhost:3001';
 function App() {
     const [fences, setFences] = useState([]);
     const [collars, setCollars] = useState([]);
+    const [isDrawing, setIsDrawing] = useState(false);
+    const DrawControlNative = ({ onCreated }) => {
+        const map = useMap();
+
+        useEffect(() => {
+            const drawnItems = new L.FeatureGroup();
+            map.addLayer(drawnItems);
+
+            const drawControl = new L.Control.Draw({
+                position: 'topright',
+                draw: {
+                    rectangle: false,
+                    circle: false,
+                    circlemarker: false,
+                    marker: false,
+                    polyline: false,
+                    polygon: {
+                        allowIntersection: false,
+                        showArea: true,
+                    },
+                },
+                edit: {
+                    featureGroup: drawnItems,
+                },
+            });
+
+            map.addControl(drawControl);
+
+            const onCreatedHandler = (e) => {
+                setIsDrawing(false);
+                drawnItems.addLayer(e.layer);
+                onCreated(e);
+            };
+            const onDrawStartHandler = () => setIsDrawing(true);
+            const onDrawStopHandler = () => setIsDrawing(false);
+
+            map.on(L.Draw.Event.CREATED, onCreatedHandler);
+            map.on('draw:start', onDrawStartHandler);
+            map.on('draw:stop', onDrawStopHandler);
+
+            return () => {
+                map.off(L.Draw.Event.CREATED, onCreatedHandler);
+                map.off('draw:start', onDrawStartHandler);
+                map.off('draw:stop', onDrawStopHandler);
+                map.removeControl(drawControl);
+                map.removeLayer(drawnItems);
+            };
+        }, [map]);
+
+        return null;
+    };
 
     const fetchFences = async () => {
         try {
@@ -45,7 +95,10 @@ function App() {
     
     useEffect(() => {
         fetchFences();
-        
+
+        // Skip polling updates while user is drawing to prevent UI re-renders
+        if (isDrawing) return;
+
         const interval = setInterval(async () => {
             try {
                 const response = await axios.get(`${API_URL}/api/collars/latest`);
@@ -56,7 +109,7 @@ function App() {
         }, 5000); // Poll every 5 seconds
 
         return () => clearInterval(interval);
-    }, []);
+    }, [isDrawing]);
 
     const handleCreate = async (e) => {
         const { layer } = e;
@@ -80,25 +133,12 @@ function App() {
             <header className="header">
                 Virtual Fencing System Dashboard
             </header>
-            <MapContainer center={[54.07, -1.99]} zoom={14} scrollWheelZoom={true}>
+            <MapContainer center={[36.7359, 3.34018]} zoom={14} scrollWheelZoom={true} style={{ height: 'calc(100vh - 56px)', width: '100%' }}>
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-
-                <FeatureGroup>
-                    <EditControl
-                        position="topleft"
-                        onCreated={handleCreate}
-                        draw={{
-                            rectangle: false,
-                            circle: false,
-                            circlemarker: false,
-                            marker: false,
-                            polyline: false,
-                        }}
-                    />
-                </FeatureGroup>
+                <DrawControlNative onCreated={handleCreate} />
                 
                 {fences.map(fence => (
                     <Polygon key={fence.id} positions={fence.positions} color="blue" />
