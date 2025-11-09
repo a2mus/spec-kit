@@ -33,3 +33,7 @@ body {
 .popup-content strong {
     color: #0056b3;
 }
+
+.fence-polygon {
+    cursor: pointer;
+}

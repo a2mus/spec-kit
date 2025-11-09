@@ -149,6 +149,19 @@ function App() {
         }
     };
 
+    const handleDeleteFence = async (id) => {
+        const ok = window.confirm(`Delete fence ${id}? This cannot be undone.`);
+        if (!ok) return;
+        try {
+            await axios.delete(`${API_URL}/api/fences/${id}`);
+            // Refetch fences to reflect deletion
+            fetchFences();
+        } catch (error) {
+            console.error(`Error deleting fence ${id}`, error);
+            alert('Failed to delete fence. Please try again.');
+        }
+    };
+
     return (
         <div className="app-container">
             <header className="header">
@@ -162,7 +175,14 @@ function App() {
                 <DrawControlNative onCreated={handleCreate} />
                 
                 {fences.map(fence => (
-                    <Polygon key={fence.id} positions={fence.positions} color="blue" />
+                    <Polygon
+                        key={fence.id}
+                        positions={fence.positions}
+                        pathOptions={{ color: 'blue', className: 'fence-polygon' }}
+                        eventHandlers={{
+                            click: () => handleDeleteFence(fence.id)
+                        }}
+                    />
                 ))}
 
                 {!isDrawing && collars.map(collar => (

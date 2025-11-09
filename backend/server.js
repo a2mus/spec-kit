@@ -51,6 +51,26 @@ app.post('/api/fences', async (req, res) => {
   }
 });
 
+// Endpoint to delete a fence by id
+app.delete('/api/fences/:id', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) {
+    return res.status(400).send({ error: 'Invalid fence id' });
+  }
+
+  try {
+    const result = await pool.query('DELETE FROM "Fences" WHERE id = $1', [id]);
+    // rowCount reflects number of rows deleted
+    if (result.rowCount === 0) {
+      return res.status(404).send({ error: 'Fence not found' });
+    }
+    return res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting fence:', error);
+    res.status(500).send({ error: 'Internal server error' });
+  }
+});
+
 // Endpoint for the collar to post data
 app.post('/api/collars/data', async (req, res) => {
     const data = req.body;

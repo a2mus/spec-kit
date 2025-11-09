@@ -15,6 +15,7 @@
 ## Key Endpoints
 - `GET /api/fences` – list saved fences.
 - `POST /api/fences` – save a new fence.
+ - `DELETE /api/fences/:id` – delete a fence by id.
 - `POST /api/collars/data` – ingest telemetry from simulator/collar.
 - `GET /api/collars/latest` – latest telemetry for frontend polling.
 

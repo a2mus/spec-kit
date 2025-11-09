@@ -18,6 +18,7 @@
 - Import `leaflet-draw` JS and `leaflet.draw.css` to register the control.
 - Pause polling while drawing to avoid re-render interruptions; resume after creation.
 - Toolbar positioned `topright` to avoid overlay conflicts.
+ - Fence deletion: clickable polygons trigger DELETE API and refetch list.
 
 ## Coding Standards
 - Keep endpoints and schema names quoted to match SQL definitions.

@@ -16,3 +16,4 @@
 - Implement edit/delete flows and sync edits to backend endpoints.
 - Surface fence names and timestamps in the UI list.
 - Review Compose file to remove obsolete `version` key warning later.
+ - Validate clickable polygon deletion UX and consider confirm dialogs and undo.

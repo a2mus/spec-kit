@@ -7,10 +7,12 @@ from datetime import datetime
 # but from your host machine, you need to use localhost and the mapped port.
 SERVER_URL = "http://localhost:3001/api/collars/data"
 
-# Simulate 2 collars with starting positions near the default map view
+# Simulate collars with starting positions in Reghaïa, Algeria (near Algiers)
+# Slightly offset starting points to avoid overlapping markers
 collars = {
-    9920: {"LAT": 54.071, "LON": -1.995},
-    9921: {"LAT": 54.073, "LON": -1.998},
+    9920: {"LAT": 36.7359, "LON": 3.34018},
+    9921: {"LAT": 36.7365, "LON": 3.33850},
+    9930: {"LAT": 36.7348, "LON": 3.34150},
 }
 
 print("--- Starting Cattle Collar Simulator ---")

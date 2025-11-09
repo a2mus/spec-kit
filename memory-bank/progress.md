@@ -19,3 +19,12 @@
 ## Known Issues / Observations
 - Compose `version` key deprecation warning persists; safe to remove later.
 - Occasional OSM tile fetch errors observed; do not block draw interactions.
+- 2025-11-09
+  - Relocated all simulator collars to Reghaïa, Algeria for demo clarity.
+  - Restarted simulator; backend receiving HTTP 201 for updated positions.
+  - Verified frontend renders markers near Algiers and updates every 20s.
+ - 2025-11-09
+   - Implemented fence deletion:
+     - Backend: added `DELETE /api/fences/:id` endpoint.
+     - Frontend: clickable polygons call DELETE and refetch.
+     - Rebuilt backend/frontend; preview shows deletion working with no errors.
