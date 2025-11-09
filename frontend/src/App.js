@@ -31,12 +31,17 @@ function App() {
     const [isDrawing, setIsDrawing] = useState(false);
     const DrawControlNative = ({ onCreated }) => {
         const map = useMap();
+        const drawnItemsRef = useRef(null);
+        const drawControlRef = useRef(null);
 
         useEffect(() => {
-            const drawnItems = new L.FeatureGroup();
-            map.addLayer(drawnItems);
+            if (!drawnItemsRef.current) {
+                drawnItemsRef.current = new L.FeatureGroup();
+                map.addLayer(drawnItemsRef.current);
+            }
 
-            const drawControl = new L.Control.Draw({
+            if (!drawControlRef.current) {
+                drawControlRef.current = new L.Control.Draw({
                 position: 'topright',
                 draw: {
                     rectangle: false,
@@ -50,19 +55,26 @@ function App() {
                     },
                 },
                 edit: {
-                    featureGroup: drawnItems,
+                    featureGroup: drawnItemsRef.current,
                 },
-            });
-
-            map.addControl(drawControl);
+                });
+                map.addControl(drawControlRef.current);
+            }
 
             const onCreatedHandler = (e) => {
+                console.log('[Draw] created at', new Date().toISOString());
                 setIsDrawing(false);
-                drawnItems.addLayer(e.layer);
+                drawnItemsRef.current.addLayer(e.layer);
                 onCreated(e);
             };
-            const onDrawStartHandler = () => setIsDrawing(true);
-            const onDrawStopHandler = () => setIsDrawing(false);
+            const onDrawStartHandler = () => {
+                console.log('[Draw] start at', new Date().toISOString());
+                setIsDrawing(true);
+            };
+            const onDrawStopHandler = () => {
+                console.log('[Draw] stop at', new Date().toISOString());
+                setIsDrawing(false);
+            };
 
             map.on(L.Draw.Event.CREATED, onCreatedHandler);
             map.on('draw:start', onDrawStartHandler);
@@ -72,10 +84,16 @@ function App() {
                 map.off(L.Draw.Event.CREATED, onCreatedHandler);
                 map.off('draw:start', onDrawStartHandler);
                 map.off('draw:stop', onDrawStopHandler);
-                map.removeControl(drawControl);
-                map.removeLayer(drawnItems);
+                if (drawControlRef.current) {
+                    map.removeControl(drawControlRef.current);
+                    drawControlRef.current = null;
+                }
+                if (drawnItemsRef.current) {
+                    map.removeLayer(drawnItemsRef.current);
+                    drawnItemsRef.current = null;
+                }
             };
-        }, [map]);
+        }, []);
 
         return null;
     };
@@ -93,10 +111,13 @@ function App() {
         }
     };
     
+    // Fetch fences on mount only to avoid interrupting draw interactions
     useEffect(() => {
         fetchFences();
+    }, []);
 
-        // Skip polling updates while user is drawing to prevent UI re-renders
+    // Poll collars, but pause during drawing to reduce re-renders
+    useEffect(() => {
         if (isDrawing) return;
 
         const interval = setInterval(async () => {
@@ -106,7 +127,7 @@ function App() {
             } catch (error) {
                 console.error("Error fetching latest collar data", error);
             }
-        }, 5000); // Poll every 5 seconds
+        }, 5000);
 
         return () => clearInterval(interval);
     }, [isDrawing]);
@@ -133,7 +154,7 @@ function App() {
             <header className="header">
                 Virtual Fencing System Dashboard
             </header>
-            <MapContainer center={[36.7359, 3.34018]} zoom={14} scrollWheelZoom={true} style={{ height: 'calc(100vh - 56px)', width: '100%' }}>
+            <MapContainer center={[36.7359, 3.34018]} zoom={14} doubleClickZoom={false} scrollWheelZoom={true} style={{ height: 'calc(100vh - 56px)', width: '100%' }}>
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -144,7 +165,7 @@ function App() {
                     <Polygon key={fence.id} positions={fence.positions} color="blue" />
                 ))}
 
-                {collars.map(collar => (
+                {!isDrawing && collars.map(collar => (
                     <Marker key={collar.collar_id} position={[collar.latitude, collar.longitude]} icon={cowIcon}>
                         <Popup>
                            <div className="popup-content">
