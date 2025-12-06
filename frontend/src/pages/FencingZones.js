@@ -1,0 +1,281 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { MapContainer, TileLayer, Polygon, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet-draw';
+import {
+    Fence,
+    Plus,
+    Trash2,
+    Edit,
+    MapPin,
+    Clock,
+    AlertTriangle
+} from 'lucide-react';
+import 'leaflet/dist/leaflet.css';
+import 'leaflet-draw/dist/leaflet.draw.css';
+import './FencingZones.css';
+
+const API_URL = 'http://localhost:3001';
+
+// Draw Control Component
+function DrawControlNative({ onCreated }) {
+    const map = useMap();
+
+    useEffect(() => {
+        const drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+
+        const drawControl = new L.Control.Draw({
+            position: 'topright',
+            draw: {
+                rectangle: false,
+                circle: false,
+                circlemarker: false,
+                marker: false,
+                polyline: false,
+                polygon: {
+                    allowIntersection: false,
+                    showArea: true,
+                    shapeOptions: {
+                        color: '#10B981',
+                        fillOpacity: 0.3
+                    }
+                },
+            },
+            edit: {
+                featureGroup: drawnItems,
+            },
+        });
+        map.addControl(drawControl);
+
+        const onCreatedHandler = (e) => {
+            drawnItems.addLayer(e.layer);
+            onCreated(e);
+        };
+
+        map.on(L.Draw.Event.CREATED, onCreatedHandler);
+
+        return () => {
+            map.off(L.Draw.Event.CREATED, onCreatedHandler);
+            map.removeControl(drawControl);
+            map.removeLayer(drawnItems);
+        };
+    }, [map, onCreated]);
+
+    return null;
+}
+
+function FencingZones() {
+    const [fences, setFences] = useState([]);
+    const [collars, setCollars] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [newFenceName, setNewFenceName] = useState('');
+    const [showCreateForm, setShowCreateForm] = useState(false);
+    const [pendingFence, setPendingFence] = useState(null);
+
+    const fetchData = async () => {
+        try {
+            const [fencesRes, collarsRes] = await Promise.all([
+                axios.get(`${API_URL}/api/fences`),
+                axios.get(`${API_URL}/api/collars/latest`)
+            ]);
+
+            const formattedFences = fencesRes.data.map(f => ({
+                id: f.id,
+                name: f.name || `Zone ${f.id}`,
+                positions: f.geo_json.coordinates[0].map(coord => [coord[1], coord[0]]),
+                createdAt: f.created_at
+            }));
+
+            setFences(formattedFences);
+            setCollars(collarsRes.data);
+            setLoading(false);
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const handleCreate = async (e) => {
+        const { layer } = e;
+        const geojson = layer.toGeoJSON();
+        setPendingFence(geojson.geometry);
+        setShowCreateForm(true);
+    };
+
+    const saveFence = async () => {
+        if (!pendingFence) return;
+
+        try {
+            await axios.post(`${API_URL}/api/fences`, {
+                name: newFenceName || `Zone ${Date.now()}`,
+                geo_json: pendingFence
+            });
+            setShowCreateForm(false);
+            setNewFenceName('');
+            setPendingFence(null);
+            fetchData();
+        } catch (error) {
+            console.error("Error saving fence", error);
+            alert('Failed to save fence. Please try again.');
+        }
+    };
+
+    const handleDeleteFence = async (id, name) => {
+        if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+        try {
+            await axios.delete(`${API_URL}/api/fences/${id}`);
+            fetchData();
+        } catch (error) {
+            console.error(`Error deleting fence ${id}`, error);
+            alert('Failed to delete fence. Please try again.');
+        }
+    };
+
+    // Calculate cattle count per zone (simplified - just count all for now)
+    const getCattleInZone = (fence) => {
+        // In a real implementation, you'd use point-in-polygon algorithm
+        return Math.floor(Math.random() * collars.length);
+    };
+
+    const mapCenter = collars.length > 0
+        ? [collars[0].latitude, collars[0].longitude]
+        : [36.7359, 3.34018];
+
+    if (loading) {
+        return (
+            <div className="loading-container">
+                <div className="spinner"></div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="fencing-zones">
+            {/* Header */}
+            <div className="flex justify-between items-center">
+                <div>
+                    <h2>Virtual Fencing Zones</h2>
+                    <p className="text-secondary">Manage and monitor your virtual boundaries</p>
+                </div>
+            </div>
+
+            {/* Zone Cards Grid */}
+            <div className="grid grid-cols-3">
+                {fences.map(fence => (
+                    <div key={fence.id} className="zone-card">
+                        <div className="zone-header">
+                            <div className="zone-title">
+                                <div className="zone-color" style={{ background: '#3B82F6' }}></div>
+                                {fence.name}
+                            </div>
+                            <div className="zone-actions">
+                                <button
+                                    className="btn btn-icon btn-secondary"
+                                    onClick={() => handleDeleteFence(fence.id, fence.name)}
+                                    title="Delete zone"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="zone-stats">
+                            <div className="zone-stat">
+                                <MapPin size={14} />
+                                <span className="zone-stat-value">{fence.positions.length}</span> vertices
+                            </div>
+                            <div className="zone-stat">
+                                <Clock size={14} />
+                                {fence.createdAt ? new Date(fence.createdAt).toLocaleDateString() : 'N/A'}
+                            </div>
+                        </div>
+                        <div className="zone-status">
+                            <span className="badge badge-success">Active</span>
+                        </div>
+                    </div>
+                ))}
+
+                {/* Add New Zone Card */}
+                <div className="zone-card zone-card-add">
+                    <div className="add-zone-content">
+                        <Fence size={32} />
+                        <p>Draw on the map below to create a new zone</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Map for Zone Creation */}
+            <div className="card">
+                <div className="card-header">
+                    <h3 className="card-title">Zone Editor</h3>
+                    <p className="text-secondary text-sm">Use the polygon tool to draw new boundaries. Click existing zones on map to delete.</p>
+                </div>
+                <div className="zone-map">
+                    <MapContainer center={mapCenter} zoom={14} scrollWheelZoom={true}>
+                        <TileLayer
+                            attribution='&copy; OpenStreetMap contributors'
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        />
+                        <DrawControlNative onCreated={handleCreate} />
+
+                        {fences.map(fence => (
+                            <Polygon
+                                key={fence.id}
+                                positions={fence.positions}
+                                pathOptions={{
+                                    color: '#3B82F6',
+                                    fillColor: '#3B82F6',
+                                    fillOpacity: 0.2,
+                                    weight: 2
+                                }}
+                                eventHandlers={{
+                                    click: () => handleDeleteFence(fence.id, fence.name)
+                                }}
+                            />
+                        ))}
+                    </MapContainer>
+                </div>
+            </div>
+
+            {/* Create Zone Modal */}
+            {showCreateForm && (
+                <div className="modal-overlay">
+                    <div className="modal">
+                        <h3>Create New Zone</h3>
+                        <div className="form-group">
+                            <label>Zone Name</label>
+                            <input
+                                type="text"
+                                value={newFenceName}
+                                onChange={(e) => setNewFenceName(e.target.value)}
+                                placeholder="Enter zone name..."
+                                autoFocus
+                            />
+                        </div>
+                        <div className="modal-actions">
+                            <button
+                                className="btn btn-secondary"
+                                onClick={() => {
+                                    setShowCreateForm(false);
+                                    setPendingFence(null);
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button className="btn btn-primary" onClick={saveFence}>
+                                Create Zone
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+export default FencingZones;

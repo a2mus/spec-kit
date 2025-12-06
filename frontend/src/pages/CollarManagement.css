@@ -1,0 +1,134 @@
+.collar-management {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.page-header h2 {
+    margin-bottom: var(--space-xs);
+}
+
+/* Stat card gray */
+.stat-card.gray {
+    background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%);
+    color: white;
+}
+
+.stat-card.gray .stat-card-icon {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.stat-card.blue {
+    background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%);
+    color: white;
+}
+
+.stat-card.blue .stat-card-icon {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Highlight card */
+.highlight-card {
+    border: 2px solid var(--color-warning);
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(245, 158, 11, 0.02) 100%);
+}
+
+.highlight-card .card-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.mb-md {
+    margin-bottom: var(--space-md);
+}
+
+.mb-lg {
+    margin-bottom: var(--space-lg);
+}
+
+.mt-md {
+    margin-top: var(--space-md);
+}
+
+.ml-sm {
+    margin-left: var(--space-sm);
+}
+
+/* Collar Grid */
+.collar-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--space-md);
+}
+
+.collar-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+}
+
+.collar-card.discovered {
+    border-color: var(--color-warning);
+    background: rgba(245, 158, 11, 0.05);
+}
+
+.collar-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-hover);
+    border-radius: var(--radius-md);
+    color: var(--color-primary-blue);
+}
+
+.collar-card.discovered .collar-icon {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--color-warning);
+}
+
+.collar-info {
+    flex: 1;
+}
+
+.collar-id {
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.collar-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+/* Button small */
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.text-warning {
+    color: var(--color-warning);
+}
+
+@media (max-width: 640px) {
+    .collar-grid {
+        grid-template-columns: 1fr;
+    }
+}

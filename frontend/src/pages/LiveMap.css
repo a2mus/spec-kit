@@ -1,0 +1,295 @@
+.live-map-container {
+    display: flex;
+    gap: var(--space-lg);
+    height: calc(100vh - var(--header-height) - var(--space-lg) * 2);
+}
+
+.live-map-container.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100vh;
+    z-index: 1000;
+    padding: 0;
+    gap: 0;
+}
+
+.live-map-container.fullscreen .map-sidebar {
+    display: none;
+}
+
+.live-map-container.fullscreen .map-main {
+    border-radius: 0;
+}
+
+/* Sidebar */
+.map-sidebar {
+    width: 320px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    overflow-y: auto;
+}
+
+.filter-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
+}
+
+.filter-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-full);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.filter-btn:hover {
+    border-color: var(--color-primary-blue);
+    color: var(--color-primary-blue);
+}
+
+.filter-btn.active {
+    background: var(--color-primary-blue);
+    border-color: var(--color-primary-blue);
+    color: white;
+}
+
+.filter-btn.healthy.active {
+    background: var(--color-success);
+    border-color: var(--color-success);
+}
+
+.filter-btn.warning.active {
+    background: var(--color-warning);
+    border-color: var(--color-warning);
+}
+
+.filter-btn.alert.active {
+    background: var(--color-alert);
+    border-color: var(--color-alert);
+}
+
+/* Cattle List */
+.cattle-list-card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.cattle-list {
+    flex: 1;
+    overflow-y: auto;
+    margin: calc(-1 * var(--space-lg));
+    margin-top: 0;
+    padding: 0 var(--space-lg) var(--space-lg);
+}
+
+.cattle-list-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    border-bottom: 1px solid var(--border-light);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.cattle-list-item:hover {
+    background: var(--bg-hover);
+}
+
+.cattle-list-item.selected {
+    background: rgba(59, 130, 246, 0.1);
+    border-left: 3px solid var(--color-primary-blue);
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.status-dot.healthy {
+    background: var(--color-success);
+}
+
+.status-dot.warning {
+    background: var(--color-warning);
+}
+
+.status-dot.alert {
+    background: var(--color-alert);
+}
+
+.cattle-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.cattle-id {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.cattle-meta {
+    display: flex;
+    gap: var(--space-md);
+    font-size: 11px;
+    color: var(--text-light);
+    margin-top: 2px;
+}
+
+.cattle-meta span {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+/* Fence List */
+.fence-list {
+    margin: calc(-1 * var(--space-lg));
+    margin-top: 0;
+}
+
+.fence-list-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md) var(--space-lg);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.fence-list-item:last-child {
+    border-bottom: none;
+}
+
+.fence-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+.fence-info {
+    flex: 1;
+}
+
+.fence-name {
+    font-weight: 500;
+    font-size: 14px;
+}
+
+/* Map Main */
+.map-main {
+    flex: 1;
+    position: relative;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+}
+
+.map-main .leaflet-container {
+    height: 100%;
+}
+
+.map-controls {
+    position: absolute;
+    top: var(--space-md);
+    right: var(--space-md);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.map-control-btn {
+    width: 36px;
+    height: 36px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all var(--transition-fast);
+}
+
+.map-control-btn:hover {
+    background: var(--bg-hover);
+    color: var(--color-primary-blue);
+}
+
+/* Custom Cattle Marker */
+.cattle-marker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cattle-marker.healthy svg circle:last-child {
+    fill: var(--color-success);
+}
+
+.cattle-marker.warning svg circle:last-child {
+    fill: var(--color-warning);
+}
+
+.cattle-marker.alert svg circle:last-child {
+    fill: var(--color-alert);
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .map-sidebar {
+        width: 280px;
+    }
+}
+
+@media (max-width: 768px) {
+    .live-map-container {
+        flex-direction: column;
+        height: auto;
+    }
+
+    .map-sidebar {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        overflow-x: auto;
+    }
+
+    .map-sidebar .card {
+        flex: 1;
+        min-width: 280px;
+    }
+
+    .map-main {
+        height: 50vh;
+    }
+}

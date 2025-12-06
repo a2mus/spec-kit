@@ -1,30 +1,30 @@
 # Progress Log
 
-- 2025-11-09
-  - Initialized Memory Bank with full project context.
-  - Started database (`cattle-db`) and backend (`cattle-backend`) via Docker Compose.
-  - Simulator posting telemetry successfully (HTTP 201) to backend.
-  - Frontend built/served via Docker on `http://localhost:8080` and opened preview.
-  - Noted Compose `version` key deprecation warning.
+## 2025-12-05 Session 2 - Collar Registration System
+- Added database tables: Collars, Cattle, HealthThresholds
+- Backend API: cattle CRUD, collar assignment, auto-discovery
+- Frontend: CattleRoster page with add/edit/delete cattle
+- Frontend: CollarManagement page with discovery and assignment flow
+- Health Monitor: Now displays heart rate and SpO2 from collar sensors
+- Reserved collar ID 9999 for unassigned/new collars
+- Config delivery via polling: pending_config returned in POST response
+- Health thresholds: body_temp (37.5-39.5°C), heart_rate (48-84 BPM), spo2 (95-100%)
 
-## Known Issues / Observations
-- Host `npm start` failed due to Node version path mismatch; Docker usage recommended.
-- Consider adding simulator to Compose for full Dockerized workflow.
-- 2025-11-09
-  - Fixed polygon drawing by importing `leaflet-draw` and using native `L.Control.Draw` with `useMap`.
-  - Rebuilt and restarted frontend container; preview reported no browser errors.
-  - Verified DB and backend healthy; simulator continues posting telemetry.
-  - Next: add UX feedback on fence saves and implement edit/delete flows.
+## 2025-12-05 Session 1 - Major UI Overhaul
+- Transformed single-page map app into multi-page dashboard application
+- New pages: Dashboard, Live Map, Health Monitor, Fencing Zones
+- Created comprehensive CSS design system
+- Layout components: Sidebar (collapsible) and Header
+- New dependencies: react-router-dom, chart.js, react-chartjs-2, lucide-react
+- Fixed DrawControlNative callback stability issue
 
-## Known Issues / Observations
-- Compose `version` key deprecation warning persists; safe to remove later.
-- Occasional OSM tile fetch errors observed; do not block draw interactions.
-- 2025-11-09
-  - Relocated all simulator collars to Reghaïa, Algeria for demo clarity.
-  - Restarted simulator; backend receiving HTTP 201 for updated positions.
-  - Verified frontend renders markers near Algiers and updates every 20s.
- - 2025-11-09
-   - Implemented fence deletion:
-     - Backend: added `DELETE /api/fences/:id` endpoint.
-     - Frontend: clickable polygons call DELETE and refetch.
-     - Rebuilt backend/frontend; preview shows deletion working with no errors.
+## 2025-11-09
+- Initialized Memory Bank with full project context.
+- Docker Compose setup for database, backend, frontend.
+- Simulator posting telemetry successfully.
+- Polygon drawing with native L.Control.Draw.
+- Fence deletion implemented.
+
+## Known Issues
+- Path with `&` character causes npm issues on Windows; use Docker.
+- Compose `version` key deprecation warning; safe to remove.

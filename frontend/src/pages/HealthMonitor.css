@@ -1,0 +1,185 @@
+.health-monitor {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+/* Status Indicator */
+.status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.status-indicator.healthy {
+    background: var(--color-success);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+.status-indicator.warning {
+    background: var(--color-warning);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+    animation: pulse-warning 2s infinite;
+}
+
+.status-indicator.alert {
+    background: var(--color-alert);
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+    animation: pulse-alert 1s infinite;
+}
+
+@keyframes pulse-warning {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+    }
+
+    50% {
+        box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.1);
+    }
+}
+
+@keyframes pulse-alert {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+    }
+
+    50% {
+        box-shadow: 0 0 0 8px rgba(239, 68, 68, 0.1);
+    }
+}
+
+/* Issue Tags */
+.issue-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    margin: 2px;
+    font-size: 11px;
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--color-alert);
+    border-radius: var(--radius-full);
+}
+
+/* Vitals Cell */
+.vitals-cell {
+    display: flex;
+    gap: var(--space-md);
+    font-size: 12px;
+}
+
+.vitals-cell span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Vital Card - Enhanced */
+.vital-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.vital-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.vital-card.status-warning {
+    border-color: var(--color-warning);
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, transparent 100%);
+}
+
+.vital-card.status-alert {
+    border-color: var(--color-alert);
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, transparent 100%);
+}
+
+.vital-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-md);
+    padding-bottom: var(--space-sm);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.vital-id {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.vital-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-md);
+}
+
+.metric-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+}
+
+.metric-icon {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-hover);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+}
+
+.metric-data {
+    flex: 1;
+}
+
+.metric-value {
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.metric-label {
+    font-size: 11px;
+    color: var(--text-light);
+}
+
+.vital-footer {
+    margin-top: var(--space-md);
+    padding-top: var(--space-sm);
+    border-top: 1px solid var(--border-light);
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .vitals-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .vital-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .vital-metrics-grid {
+        grid-template-columns: 1fr;
+    }
+}
