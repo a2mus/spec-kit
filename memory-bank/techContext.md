@@ -1,11 +1,13 @@
 # Tech Context
 
 ## Stack
-- Orchestration: Docker Compose (database, backend, frontend)
-- Database: TimescaleDB (PostgreSQL 14)
-- Backend: Node.js 16, Express, pg, CORS
-- Frontend: React 18, React Router, react-leaflet, Chart.js, Lucide React
-- Simulator: Python 3, requests
+- **Orchestration**: Docker Compose (database, backend, frontend)
+- **Database**: TimescaleDB (PostgreSQL 14)
+- **Backend**: Node.js 16, Express, pg, CORS
+- **Frontend**: React 18, React Router, react-leaflet, Chart.js, Lucide React
+- **Hardware (Edge)**: BeagleBone Black, SX1276/RFM95 LoRa Module
+- **Edge Software**: Python/C++ serial reader + HTTP client
+- **Simulator**: Python 3, requests
 
 ## Database Schema
 ### Tables

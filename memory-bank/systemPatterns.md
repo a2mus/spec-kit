@@ -1,12 +1,34 @@
 # System Patterns
 
 ## Architecture
+```mermaid
+graph LR
+    Collar -- "LoRa (RF)" --> LoRa_Module[LoRa Module]
+    LoRa_Module -- "UART/SPI" --> BeagleBone_Script[Python Script]
+    BeagleBone_Script -- "JSON Parsing" --> BeagleBone_Script
+    BeagleBone_Script -- "HTTP POST" --> Backend[Express Server]
+    Backend -- "JSON Response" --> BeagleBone_Script
+    Backend --> TimescaleDB
+    Backend --> Frontend
 ```
-Collar (LoRa TX) → BeagleBone (LoRa RX + HTTP client) → Backend (Express) → TimescaleDB
-                           ↑                                    ↓
-                     RX window                          Frontend (React)
-                   (receives new ID)
-```
+
+## Data Ingestion Flow (Hardware & Software)
+### 1. Collar → BeagleBone (The "Edge")
+- **Technology**: LoRa (Long Range) RF via UART/SPI interface.
+- **Hardware**: BeagleBone Black with SX1276/RFM95 LoRa module.
+- **Process**:
+  1. Collar transmits raw string packet (e.g., `ID=9920;BATT=3.70...`).
+  2. LoRa module receives signal and passes bytes to BeagleBone via Serial/UART.
+  3. Python/C++ daemon on BeagleBone reads serial port (`/dev/ttyS0`).
+  4. Script parses raw string into structured JSON object.
+
+### 2. BeagleBone → Backend (The "Bridge")
+- **Technology**: HTTP REST API over Ethernet/WiFi/Cellular.
+- **Process**:
+  1. BeagleBone constructs JSON payload.
+  2. POSTs to `http://<SERVER_IP>:3001/api/collars/data`.
+  3. **Bidirectional Sync**: Backend responds with HTTP 201. If a new config exists (e.g., assigned ID), it's included in the response body (`pending_config`).
+  4. BeagleBone checks `pending_config` and immediately transmits new settings back to collar via LoRa (RX Window).
 
 ## Collar Registration Pattern
 1. New collar uses reserved ID (9999)
