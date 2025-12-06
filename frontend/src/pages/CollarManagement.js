@@ -7,7 +7,8 @@ import {
     Clock,
     AlertCircle,
     CheckCircle,
-    Search
+    Search,
+    Trash2
 } from 'lucide-react';
 import './CollarManagement.css';
 
@@ -73,6 +74,18 @@ function CollarManagement() {
         } catch (error) {
             console.error('Error unassigning collar:', error);
             alert('Failed to unassign collar. Please try again.');
+        }
+    };
+
+    const handleDeleteCollar = async (collar) => {
+        if (!window.confirm(`Delete collar #${collar.collar_id}? This action cannot be undone.`)) return;
+
+        try {
+            await axios.delete(`${API_URL}/api/collars/${collar.id}`);
+            fetchData();
+        } catch (error) {
+            console.error('Error deleting collar:', error);
+            alert('Failed to delete collar. Please try again.');
         }
     };
 
@@ -163,6 +176,13 @@ function CollarManagement() {
                                 >
                                     <Link2 size={16} /> Assign
                                 </button>
+                                <button
+                                    className="btn btn-danger btn-icon"
+                                    onClick={() => handleDeleteCollar(collar)}
+                                    title="Delete collar"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
                             </div>
                         ))}
                     </div>
@@ -216,6 +236,14 @@ function CollarManagement() {
                                             >
                                                 <Unlink size={14} /> Unassign
                                             </button>
+                                            <button
+                                                className="btn btn-danger btn-sm btn-icon"
+                                                onClick={() => handleDeleteCollar(collar)}
+                                                title="Delete collar"
+                                                style={{ marginLeft: '8px' }}
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
                                         </td>
                                     </tr>
                                 ))}
@@ -262,6 +290,14 @@ function CollarManagement() {
                                                 onClick={() => openAssignModal(collar)}
                                             >
                                                 <Link2 size={14} /> Reassign
+                                            </button>
+                                            <button
+                                                className="btn btn-danger btn-sm btn-icon"
+                                                onClick={() => handleDeleteCollar(collar)}
+                                                title="Delete collar"
+                                                style={{ marginLeft: '8px' }}
+                                            >
+                                                <Trash2 size={14} />
                                             </button>
                                         </td>
                                     </tr>

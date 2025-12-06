@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { MapContainer, TileLayer, Marker, Polygon } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polygon, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
@@ -28,10 +28,40 @@ const cowIcon = new L.Icon({
     popupAnchor: [0, -30]
 });
 
+// Component to fit map bounds to fences and cattle on first load
+function FitBounds({ fences, collars, hasInitialFit }) {
+    const map = useMap();
+
+    useEffect(() => {
+        if (hasInitialFit.current) return;
+        if (fences.length === 0 && collars.length === 0) return;
+
+        const bounds = L.latLngBounds([]);
+
+        fences.forEach(fence => {
+            fence.positions.forEach(pos => bounds.extend(pos));
+        });
+
+        collars.forEach(collar => {
+            if (collar.latitude && collar.longitude) {
+                bounds.extend([collar.latitude, collar.longitude]);
+            }
+        });
+
+        if (bounds.isValid()) {
+            map.fitBounds(bounds, { padding: [30, 30], maxZoom: 15 });
+            hasInitialFit.current = true;
+        }
+    }, [map, fences, collars, hasInitialFit]);
+
+    return null;
+}
+
 function Dashboard() {
     const [collars, setCollars] = useState([]);
     const [fences, setFences] = useState([]);
     const [loading, setLoading] = useState(true);
+    const hasInitialFit = useRef(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -165,6 +195,7 @@ function Dashboard() {
                                     attribution='&copy; OpenStreetMap contributors'
                                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                                 />
+                                <FitBounds fences={fences} collars={collars} hasInitialFit={hasInitialFit} />
                                 {fences.map(fence => (
                                     <Polygon
                                         key={fence.id}

@@ -164,12 +164,12 @@ app.get('/api/collars', async (req, res) => {
       SELECT col.*, c.name as cattle_name, c.tag_number
       FROM "Collars" col
       LEFT JOIN "Cattle" c ON col.cattle_id = c.id
-      WHERE col.collar_id != $1
+      WHERE 1=1
     `;
-    const params = [UNASSIGNED_COLLAR_ID];
+    const params = [];
 
     if (status) {
-      query += ' AND col.status = $2';
+      query += ' AND col.status = $1';
       params.push(status);
     }
 
@@ -201,8 +201,8 @@ app.patch('/api/collars/:id/assign', async (req, res) => {
     const query = `
       UPDATE "Collars"
       SET cattle_id = $1,
-          status = 'active',
-          pending_new_id = $2
+      status = 'active',
+      pending_new_id = $2
       WHERE id = $3
       RETURNING *
     `;
@@ -230,7 +230,7 @@ app.patch('/api/collars/:id/unassign', async (req, res) => {
     const query = `
       UPDATE "Collars"
       SET cattle_id = NULL,
-          status = 'inactive'
+      status = 'inactive'
       WHERE id = $1
       RETURNING *
     `;
@@ -243,6 +243,36 @@ app.patch('/api/collars/:id/unassign', async (req, res) => {
     res.status(200).json(result.rows[0]);
   } catch (error) {
     console.error('Error unassigning collar:', error);
+    res.status(500).send({ error: 'Internal server error' });
+  }
+});
+
+// Delete a collar
+app.delete('/api/collars/:id', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) {
+    return res.status(400).send({ error: 'Invalid collar id' });
+  }
+
+  try {
+    // First get the collar to know its collar_id for cleanup
+    const collarResult = await pool.query('SELECT collar_id FROM "Collars" WHERE id = $1', [id]);
+
+    if (collarResult.rowCount === 0) {
+      return res.status(404).send({ error: 'Collar not found' });
+    }
+
+    const collarId = collarResult.rows[0].collar_id;
+
+    // Delete the collar from the database
+    await pool.query('DELETE FROM "Collars" WHERE id = $1', [id]);
+
+    // Also remove from in-memory cache
+    latestCollarData.delete(collarId);
+
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting collar:', error);
     res.status(500).send({ error: 'Internal server error' });
   }
 });
@@ -263,25 +293,34 @@ app.post('/api/collars/data', async (req, res) => {
     let pendingConfig = null;
 
     if (data.collar_id === UNASSIGNED_COLLAR_ID) {
-      // This is a new collar - check if we already have an unassigned entry
-      // or create one
+      // This is a new collar (ID 9999)
+      // Check if the reserved entry exists (regardless of status)
       const checkResult = await pool.query(
-        'SELECT * FROM "Collars" WHERE collar_id = $1 AND status = $2 LIMIT 1',
-        [UNASSIGNED_COLLAR_ID, 'unassigned']
+        'SELECT * FROM "Collars" WHERE collar_id = $1',
+        [UNASSIGNED_COLLAR_ID]
       );
 
+      let collarRecord;
+
       if (checkResult.rowCount === 0) {
-        // Create a new unassigned collar entry
-        await pool.query(
-          'INSERT INTO "Collars" (collar_id, status, last_seen) VALUES ($1, $2, $3)',
+        // Should not happen if init.sql ran, but safe fallback
+        const insertResult = await pool.query(
+          'INSERT INTO "Collars" (collar_id, status, last_seen) VALUES ($1, $2, $3) RETURNING *',
           [UNASSIGNED_COLLAR_ID, 'discovered', new Date(data.timestamp)]
         );
+        collarRecord = insertResult.rows[0];
       } else {
-        // Update last_seen
-        await pool.query(
-          'UPDATE "Collars" SET last_seen = $1 WHERE collar_id = $2',
-          [new Date(data.timestamp), UNASSIGNED_COLLAR_ID]
+        // Update status to 'discovered' so it shows in UI, and update timestamp
+        const updateResult = await pool.query(
+          'UPDATE "Collars" SET status = $1, last_seen = $2 WHERE collar_id = $3 RETURNING *',
+          ['discovered', new Date(data.timestamp), UNASSIGNED_COLLAR_ID]
         );
+        collarRecord = updateResult.rows[0];
+      }
+
+      // Check for pending config (e.g., if it was just assigned a new ID)
+      if (collarRecord && collarRecord.pending_new_id) {
+        pendingConfig = { new_id: collarRecord.pending_new_id };
       }
     } else {
       // Known collar - check if it exists, create if not

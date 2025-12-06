@@ -12,11 +12,48 @@ import {
     Thermometer,
     Battery,
     Activity,
-    MapPin
+    MapPin,
+    Crosshair,
+    Trash2
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import './LiveMap.css';
+
+// Component to fit map bounds to fences and cattle
+function FitBounds({ fences, collars, hasInitialFit }) {
+    const map = useMap();
+
+    useEffect(() => {
+        // Only fit bounds on first load with data
+        if (hasInitialFit.current) return;
+        if (fences.length === 0 && collars.length === 0) return;
+
+        const bounds = L.latLngBounds([]);
+
+        // Add fence positions to bounds
+        fences.forEach(fence => {
+            fence.positions.forEach(pos => {
+                bounds.extend(pos);
+            });
+        });
+
+        // Add collar positions to bounds
+        collars.forEach(collar => {
+            if (collar.latitude && collar.longitude) {
+                bounds.extend([collar.latitude, collar.longitude]);
+            }
+        });
+
+        // Fit map to bounds with padding
+        if (bounds.isValid()) {
+            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+            hasInitialFit.current = true;
+        }
+    }, [map, fences, collars, hasInitialFit]);
+
+    return null;
+}
 
 // Fix for default marker icon issue with webpack
 delete L.Icon.Default.prototype._getIconUrl;
@@ -134,6 +171,8 @@ function LiveMap() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [selectedCollar, setSelectedCollar] = useState(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const hasInitialFit = useRef(false);
+    const mapRef = useRef(null);
 
     const fetchFences = async () => {
         try {
@@ -190,6 +229,24 @@ function LiveMap() {
         } catch (error) {
             console.error(`Error deleting fence ${id}`, error);
             alert('Failed to delete fence. Please try again.');
+        }
+    };
+
+    const handleDeleteCollar = async (collar) => {
+        if (!window.confirm(`Delete collar #${collar.collar_id}? This action cannot be undone.`)) return;
+        try {
+            // Need to get the database id from the collar_id
+            const collarsRes = await axios.get(`${API_URL}/api/collars`);
+            const collarRecord = collarsRes.data.find(c => c.collar_id === collar.collar_id);
+            if (!collarRecord) {
+                alert('Collar not found in database.');
+                return;
+            }
+            await axios.delete(`${API_URL}/api/collars/${collarRecord.id}`);
+            fetchCollars();
+        } catch (error) {
+            console.error('Error deleting collar:', error);
+            alert('Failed to delete collar. Please try again.');
         }
     };
 
@@ -323,6 +380,20 @@ function LiveMap() {
                     </button>
                     <button
                         className="map-control-btn"
+                        onClick={() => {
+                            if (mapRef.current) {
+                                const bounds = L.latLngBounds([]);
+                                fences.forEach(f => f.positions.forEach(p => bounds.extend(p)));
+                                collars.forEach(c => c.latitude && bounds.extend([c.latitude, c.longitude]));
+                                if (bounds.isValid()) mapRef.current.fitBounds(bounds, { padding: [50, 50] });
+                            }
+                        }}
+                        title="Fit to all data"
+                    >
+                        <Crosshair size={18} />
+                    </button>
+                    <button
+                        className="map-control-btn"
                         onClick={() => setIsFullscreen(!isFullscreen)}
                         title="Toggle fullscreen"
                     >
@@ -335,11 +406,13 @@ function LiveMap() {
                     zoom={14}
                     doubleClickZoom={false}
                     scrollWheelZoom={true}
+                    ref={mapRef}
                 >
                     <TileLayer
                         attribution='&copy; OpenStreetMap contributors'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
+                    <FitBounds fences={fences} collars={collars} hasInitialFit={hasInitialFit} />
                     <DrawControlNative onCreated={handleCreate} />
 
                     {/* Fences */}
@@ -401,6 +474,13 @@ function LiveMap() {
                                                 {new Date(collar.timestamp).toLocaleTimeString()}
                                             </span>
                                         </div>
+                                        <button
+                                            className="btn btn-danger btn-sm"
+                                            onClick={() => handleDeleteCollar(collar)}
+                                            style={{ marginTop: '12px', width: '100%' }}
+                                        >
+                                            <Trash2 size={14} /> Delete Collar
+                                        </button>
                                     </div>
                                 </Popup>
                             </Marker>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { MapContainer, TileLayer, Polygon, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -17,6 +17,28 @@ import 'leaflet-draw/dist/leaflet.draw.css';
 import './FencingZones.css';
 
 const API_URL = 'http://localhost:3001';
+
+// Component to fit map bounds to fences on first load
+function FitBounds({ fences, hasInitialFit }) {
+    const map = useMap();
+
+    useEffect(() => {
+        if (hasInitialFit.current) return;
+        if (fences.length === 0) return;
+
+        const bounds = L.latLngBounds([]);
+        fences.forEach(fence => {
+            fence.positions.forEach(pos => bounds.extend(pos));
+        });
+
+        if (bounds.isValid()) {
+            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+            hasInitialFit.current = true;
+        }
+    }, [map, fences, hasInitialFit]);
+
+    return null;
+}
 
 // Draw Control Component
 function DrawControlNative({ onCreated }) {
@@ -73,6 +95,7 @@ function FencingZones() {
     const [newFenceName, setNewFenceName] = useState('');
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [pendingFence, setPendingFence] = useState(null);
+    const hasInitialFit = useRef(false);
 
     const fetchData = async () => {
         try {
@@ -222,6 +245,7 @@ function FencingZones() {
                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                         />
                         <DrawControlNative onCreated={handleCreate} />
+                        <FitBounds fences={fences} hasInitialFit={hasInitialFit} />
 
                         {fences.map(fence => (
                             <Polygon

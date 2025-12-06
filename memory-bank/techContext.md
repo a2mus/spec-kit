@@ -7,7 +7,7 @@
 - **Frontend**: React 18, React Router, react-leaflet, Chart.js, Lucide React
 - **Hardware (Edge)**: BeagleBone Black, SX1276/RFM95 LoRa Module
 - **Edge Software**: Python/C++ serial reader + HTTP client
-- **Simulator**: Python 3, requests
+- **Simulator**: Python 3 (`simulator/beaglebone_vm.py`)
 
 ## Database Schema
 ### Tables
@@ -22,9 +22,9 @@
 
 ## Collar Packet Format (from LoRa)
 ```
-ID=9920;BATT=3.70;TEMP=45.0;HUM=54.9;TB=0.00;TA=0.00;DAT=011125;TIM=144411;LAT=54.071125N;LON=-1.995948W;R=27.96;P=-12.86;Y=0.00
+ID=9920;BATT=3.70;TEMP=45.0;HUM=54.9;TB=38.5;TA=25.0;DAT=011125;TIM=144411;LAT=54.071125N;LON=-1.995948W;R=27.96;P=-12.86;Y=0.00
 ```
-Plus: heart_rate, spo2 (pending addition)
+Plus: heart_rate, spo2 (simulated in beaglebone_vm.py)
 
 **Note**: Activity is NOT sent by collar - computed server-side.
 
@@ -36,12 +36,12 @@ Plus: heart_rate, spo2 (pending addition)
 - `GET/POST /api/cattle`, `PATCH/DELETE /api/cattle/:id`
 
 ### Collars
-- `GET /api/collars` - List with status filter
+- `GET /api/collars` - List all collars (includes 9999 for discovery)
 - `POST /api/collars/data` - Ingest telemetry (returns pending_config if any)
 - `PATCH /api/collars/:id/assign` - Assign to cattle, generate new ID
 - `PATCH /api/collars/:id/unassign` - Remove cattle assignment
 - `GET /api/collars/latest` - For frontend polling
-- `POST /api/collars/:oldId/confirm-new-id` - Confirm ID change
+- `POST /api/collars/:oldId/confirm-new-id` - Confirm ID change after LoRa delivery
 
 ### Dashboard
 - `GET /api/dashboard/summary` - Stats overview
@@ -52,3 +52,11 @@ Plus: heart_rate, spo2 (pending addition)
 - Backend: 3001
 - Frontend (Docker): 8080
 - Frontend (Dev): 3000
+
+## Simulator Script
+`simulator/beaglebone_vm.py` simulates:
+1. Receiving raw LoRa packet string
+2. Parsing to JSON
+3. POST to `/api/collars/data`
+4. Handling `pending_config` response
+5. Calling `/api/collars/:oldId/confirm-new-id`

@@ -205,8 +205,8 @@
 
 .map-controls {
     position: absolute;
-    top: var(--space-md);
-    right: var(--space-md);
+    bottom: var(--space-lg);
+    left: var(--space-md);
     z-index: 1000;
     display: flex;
     flex-direction: column;
@@ -225,11 +225,23 @@
     cursor: pointer;
     color: var(--text-secondary);
     transition: all var(--transition-fast);
+    box-shadow: var(--shadow-sm);
 }
 
 .map-control-btn:hover {
     background: var(--bg-hover);
     color: var(--color-primary-blue);
+}
+
+/* Move Leaflet draw controls down to avoid overlap with layer control */
+.map-main .leaflet-draw {
+    margin-top: 50px;
+}
+
+/* Style Leaflet draw buttons to match our design */
+.map-main .leaflet-draw-toolbar a {
+    background-color: var(--bg-card);
+    border-color: var(--border-light);
 }
 
 /* Custom Cattle Marker */

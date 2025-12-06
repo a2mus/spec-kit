@@ -17,7 +17,7 @@ graph LR
 - **Technology**: LoRa (Long Range) RF via UART/SPI interface.
 - **Hardware**: BeagleBone Black with SX1276/RFM95 LoRa module.
 - **Process**:
-  1. Collar transmits raw string packet (e.g., `ID=9920;BATT=3.70...`).
+  1. Collar transmits raw string packet (e.g., `ID=9920;BATT=3.70...;MOV=128`).
   2. LoRa module receives signal and passes bytes to BeagleBone via Serial/UART.
   3. Python/C++ daemon on BeagleBone reads serial port (`/dev/ttyS0`).
   4. Script parses raw string into structured JSON object.
@@ -38,6 +38,42 @@ graph LR
 5. BeagleBone sends ID to collar during RX window
 6. Collar stores in EEPROM, uses for future TX
 
+## IMU & Activity Classification
+
+### What the Collar Sends
+The collar sends **MOV (Movement Intensity)**, NOT activity classification:
+
+| Field | Size | Description |
+|-------|------|-------------|
+| MOV | 1 byte (0-255) | Motion magnitude: `sqrt(ax² + ay² + az²) * scale` |
+| Raw IMU (optional) | 12 bytes | 3-axis accel + 3-axis gyro (int16 each) |
+
+**Important**: The collar MCU has limited compute power. It can only calculate a simple motion magnitude, not complex activity patterns.
+
+### Where Classification Happens
+
+| Classification Level | Where | Examples |
+|---------------------|-------|----------|
+| Basic | BeagleBone | Moving, Resting, Standing, Lying |
+| Advanced (ML) | Backend | Rumination, Grazing, Health patterns, Estrus |
+
+### Data Flow for Activity Classification
+```
+Collar (MCU)           BeagleBone                 Backend
+    │                       │                         │
+    │  MOV + Raw IMU        │                         │
+    ├──────────────────────►│                         │
+    │                       │ Buffer samples          │
+    │                       │ Compute features        │
+    │                       │ Basic classification    │
+    │                       │                         │
+    │                       │  Aggregated windows     │
+    │                       ├────────────────────────►│
+    │                       │                         │ ML classification
+    │                       │                         │ Health scoring
+    │                       │                         │ Alert generation
+```
+
 ## Health Status Logic
 ```javascript
 // Critical (alert)
@@ -55,7 +91,8 @@ spo2 90-95%
 
 ## Data Flow Patterns
 - **Telemetry**: Collar → BeagleBone → POST /api/collars/data → DB + in-memory Map
-- **Activity**: Computed server-side from accelerometer history (roll, pitch, yaw patterns)
+- **Movement Intensity (MOV)**: Computed on collar, stored in LocationHistory
+- **Activity Classification**: Computed on BeagleBone (basic) or Backend (advanced ML)
 - **Config**: Returned in POST response (polling pattern)
 
 ## Frontend Patterns

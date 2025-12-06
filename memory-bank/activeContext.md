@@ -1,31 +1,31 @@
 # Active Context
 
 ## Current Focus
-- Collar registration system implemented
-- Cattle management with CRUD operations
-- Health monitoring with heart rate and SpO2 sensors
-- Activity will be computed server-side (not from collar)
+- BeagleBone simulation script created and verified
+- Collar registration flow fully tested end-to-end
+- Backend API stabilized for collar discovery and assignment
 
-## Recent Changes (2025-12-05)
-- Added Collars table with auto-discovery and assignment workflow
-- Added Cattle table for herd registry
-- Added HealthThresholds table for configurable alert levels
-- Backend API extended with cattle CRUD, collar assignment, dashboard summary
-- Frontend: new Cattle Roster and Collar Management pages
-- Health Monitor updated to display heart rate and SpO2
-- Polling-based config delivery: collar receives new ID in POST response
+## Recent Changes (2025-12-06)
+- Created `simulator/beaglebone_vm.py` - simulates BeagleBone reading LoRa and posting to backend
+- Fixed server.js: pending_config now correctly returned for collar ID 9999
+- Fixed server.js: upsert logic for unassigned collar prevents duplicate key errors
+- Verified: New collar discovery → Assignment → Config delivery → ID confirmation
 
-## Collar Registration Flow
+## Collar Registration Flow (Verified Working)
 1. New collar sends data with ID=9999 (reserved unassigned ID)
-2. Backend registers as "discovered" collar
-3. Farmer assigns collar to cattle via UI
-4. Backend generates unique collar ID (100+)
-5. Next collar POST returns pending_config with new_id
-6. BeagleBone sends new ID to collar in RX window
-7. Collar stores ID in EEPROM for future use
+2. Backend registers as "discovered" collar, updates last_seen
+3. Farmer assigns collar to cattle via UI (`PATCH /api/collars/:id/assign`)
+4. Backend generates unique collar ID (100+), stores in `pending_new_id`
+5. Next collar POST returns `pending_config: { new_id: 102 }`
+6. BeagleBone sends new ID to collar via LoRa RX window
+7. BeagleBone confirms via `POST /api/collars/:oldId/confirm-new-id`
+8. Backend updates collar_id from 9999 to assigned ID
+
+## Simulation Script Location
+`simulator/beaglebone_vm.py` - Run with `python beaglebone_vm.py`
 
 ## Next Steps
-- Implement activity computation module on backend
+- Implement activity computation module on backend (ML-based)
 - Add collar history/tracking visualization
 - Test with real LoRa hardware integration
-- Add WebSocket for real-time collar sync status
+- Update simulator to continuously stream data for stress testing

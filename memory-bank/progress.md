@@ -1,5 +1,13 @@
 # Progress Log
 
+## 2025-12-06 - BeagleBone Simulation & Backend Fixes
+- Created `simulator/beaglebone_vm.py` to simulate BeagleBone-to-Backend communication
+- Script parses raw LoRa packets, sends JSON to backend, handles pending config responses
+- Fixed backend bug: collar ID 9999 was causing duplicate key errors on insert
+- Fixed backend bug: pending_config was not returned for unassigned collar (9999)
+- Verified full registration loop: Discovery → Assignment → Config Delivery → Confirmation
+- Updated `GET /api/collars` to include collar 9999 (was incorrectly filtered out)
+
 ## 2025-12-05 Session 2 - Collar Registration System
 - Added database tables: Collars, Cattle, HealthThresholds
 - Backend API: cattle CRUD, collar assignment, auto-discovery
