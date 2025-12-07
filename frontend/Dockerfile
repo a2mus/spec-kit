@@ -1,25 +1,15 @@
-# Stage 1: Build the React application
-FROM node:16 AS build
+FROM node:18-alpine
 
 WORKDIR /app
 
 COPY package*.json ./
 RUN npm install
 
+# We do NOT copy source files here if we are using volumes for dev,
+# but it's good practice to have them for the build context or if volume fails.
 COPY . .
-RUN npm run build
 
-# Stage 2: Serve the application using a static file server
-FROM node:16
+# React dev server port
+EXPOSE 3000
 
-WORKDIR /app
-
-# Install `serve`, a static file server
-RUN npm install -g serve
-
-# Copy the build output from the build stage
-COPY --from=build /app/build .
-
-# Expose port 8080 and start `serve`
-EXPOSE 8080
-CMD ["serve", "-s", ".", "-l", "8080"]
+CMD ["npm", "start"]

@@ -61,21 +61,24 @@ function FitBounds({ fences, collars, hasInitialFit }) {
 function Dashboard() {
     const [collars, setCollars] = useState([]);
     const [fences, setFences] = useState([]);
+    const [activitySummary, setActivitySummary] = useState(null);
     const [loading, setLoading] = useState(true);
     const hasInitialFit = useRef(false);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [collarsRes, fencesRes] = await Promise.all([
+                const [collarsRes, fencesRes, activityRes] = await Promise.all([
                     axios.get(`${API_URL}/api/collars/latest`),
-                    axios.get(`${API_URL}/api/fences`)
+                    axios.get(`${API_URL}/api/fences`),
+                    axios.get(`${API_URL}/api/dashboard/activity-summary`)
                 ]);
                 setCollars(collarsRes.data);
                 setFences(fencesRes.data.map(f => ({
                     id: f.id,
                     positions: f.geo_json.coordinates[0].map(coord => [coord[1], coord[0]])
                 })));
+                setActivitySummary(activityRes.data);
                 setLoading(false);
             } catch (error) {
                 console.error('Error fetching data:', error);
@@ -124,6 +127,23 @@ function Dashboard() {
             }
         },
         cutout: '70%'
+    };
+
+    // Activity Chart Data
+    const activityChartData = {
+        labels: ['Grazing', 'Resting', 'Agitated/Moving', 'Standing', 'Lying'],
+        datasets: [{
+            data: [
+                activitySummary?.GRAZING?.percentage || 0,
+                activitySummary?.RESTING?.percentage || 0,
+                (activitySummary?.MOVING?.percentage || 0),
+                activitySummary?.STANDING?.percentage || 0,
+                activitySummary?.LYING?.percentage || 0
+            ],
+            backgroundColor: ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#F97316'],
+            borderWidth: 0,
+            spacing: 2
+        }]
     };
 
     // Recent activity (based on collar data with geofence alerts priority)
@@ -299,6 +319,16 @@ function Dashboard() {
                     </div>
                     <div className="chart-container" style={{ height: '250px' }}>
                         <Doughnut data={healthChartData} options={chartOptions} />
+                    </div>
+                </div>
+
+                {/* Activity Chart */}
+                <div className="card">
+                    <div className="card-header">
+                        <h3 className="card-title">Herd Activity (Last 24h)</h3>
+                    </div>
+                    <div className="chart-container" style={{ height: '250px' }}>
+                        <Doughnut data={activityChartData} options={chartOptions} />
                     </div>
                 </div>
 

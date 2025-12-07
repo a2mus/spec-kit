@@ -14,7 +14,7 @@ services:
       - db-data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d virtual_fencing_db"]
+      test: [ "CMD-SHELL", "pg_isready -U user -d virtual_fencing_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -37,11 +37,29 @@ services:
     build: ./frontend
     container_name: cattle-frontend
     ports:
-      - "8080:8080"
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:3001
+      - CHOKIDAR_USEPOLLING=true
     depends_on:
       - backend
     volumes:
       - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    stdin_open: true
+    tty: true
+
+  simulator:
+    build: ./simulator
+    container_name: cattle-simulator
+    environment:
+      - BACKEND_URL=http://backend:3001/api/collars/data
+      - ACTIVITY_API_URL=http://backend:3001/api/imu-activity
+      - FENCE_SYNC_URL=http://backend:3001/api/fences/sync
+    depends_on:
+      - backend
+    volumes:
+      - ./simulator:/app
 
 volumes:
   db-data:

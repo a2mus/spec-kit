@@ -564,7 +564,403 @@ app.get('/api/dashboard/summary', async (req, res) => {
   }
 });
 
+app.get('/api/dashboard/activity-summary', async (req, res) => {
+  const {
+    lookback_hours = 24
+  } = req.query;
+
+  try {
+    const result = await pool.query(`
+      SELECT 
+        activity_type,
+        COUNT(*) as window_count,
+        SUM(window_duration_sec) / 60.0 as total_minutes
+      FROM "IMUActivityWindows"
+      WHERE timestamp > NOW() - INTERVAL '1 hour' * $1
+      GROUP BY activity_type
+    `, [lookback_hours]);
+
+    const totalMinutes = result.rows.reduce((sum, r) => sum + parseFloat(r.total_minutes || 0), 0);
+    const summary = {};
+
+    result.rows.forEach(row => {
+      summary[row.activity_type] = {
+        total_minutes: Math.round(parseFloat(row.total_minutes || 0)),
+        percentage: totalMinutes > 0
+          ? Math.round((parseFloat(row.total_minutes) / totalMinutes) * 1000) / 10
+          : 0
+      };
+    });
+
+    res.json(summary);
+  } catch (error) {
+    console.error('Error fetching herd activity summary:', error);
+    res.status(500).send({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/imu-activity - Bulk ingest activity windows from BeagleBone
+app.post('/api/imu-activity', async (req, res) => {
+  const { collar_id, windows } = req.body;
+
+  if (!collar_id || !windows || !Array.isArray(windows) || windows.length === 0) {
+    return res.status(400).send({
+      error: 'collar_id and windows array are required'
+    });
+  }
+
+  try {
+    // Verify collar exists
+    const collarCheck = await pool.query(
+      'SELECT id FROM "Collars" WHERE collar_id = $1',
+      [collar_id]
+    );
+    if (collarCheck.rowCount === 0) {
+      return res.status(404).send({ error: 'Collar not found' });
+    }
+
+    // Batch insert using a transaction
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      let insertedCount = 0;
+      for (const w of windows) {
+        await client.query(`
+          INSERT INTO "IMUActivityWindows"(
+        timestamp, collar_id, window_duration_sec, sample_count,
+        accel_mean_x, accel_mean_y, accel_mean_z,
+        accel_std_x, accel_std_y, accel_std_z,
+        accel_magnitude_mean, accel_magnitude_std,
+        gyro_mean_x, gyro_mean_y, gyro_mean_z,
+        gyro_std_x, gyro_std_y, gyro_std_z,
+        orientation_pitch, orientation_roll,
+        movement_intensity_avg, movement_intensity_max,
+        activity_type, activity_confidence, classified_by
+      ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+          ON CONFLICT DO NOTHING
+        `, [
+          w.timestamp, collar_id, w.window_duration_sec || 60, w.sample_count || null,
+          w.accel_mean_x, w.accel_mean_y, w.accel_mean_z,
+          w.accel_std_x, w.accel_std_y, w.accel_std_z,
+          w.accel_magnitude_mean, w.accel_magnitude_std,
+          w.gyro_mean_x, w.gyro_mean_y, w.gyro_mean_z,
+          w.gyro_std_x, w.gyro_std_y, w.gyro_std_z,
+          w.orientation_pitch, w.orientation_roll,
+          w.movement_intensity_avg, w.movement_intensity_max,
+          w.activity_type || 'unknown', w.activity_confidence || null, w.classified_by || 'beaglebone'
+        ]);
+        insertedCount++;
+      }
+
+      await client.query('COMMIT');
+
+      res.status(201).json({
+        message: 'Activity data ingested successfully',
+        inserted_count: insertedCount,
+        collar_id: collar_id
+      });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error ingesting IMU activity data:', error);
+    res.status(500).send({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/collars/:id/activity - Activity history with pagination
+app.get('/api/collars/:id/activity', async (req, res) => {
+  const collarId = parseInt(req.params.id, 10);
+  if (Number.isNaN(collarId)) {
+    return res.status(400).send({ error: 'Invalid collar id' });
+  }
+
+  const {
+    startTime = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    endTime = new Date().toISOString(),
+    activityType,
+    limit = 100,
+    offset = 0
+  } = req.query;
+
+  const maxLimit = Math.min(parseInt(limit), 1000);
+  const offsetVal = parseInt(offset) || 0;
+
+  try {
+    // Build query with optional activity type filter
+    let query = `
+      SELECT 
+        timestamp, activity_type, activity_confidence,
+        movement_intensity_avg, orientation_pitch, orientation_roll,
+        classified_by, window_duration_sec
+      FROM "IMUActivityWindows"
+      WHERE collar_id = $1 AND timestamp >= $2 AND timestamp <= $3
+        `;
+    const params = [collarId, startTime, endTime];
+
+    if (activityType) {
+      query += ' AND activity_type = $4';
+      params.push(activityType);
+    }
+
+    query += ' ORDER BY timestamp DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
+    params.push(maxLimit, offsetVal);
+
+    const dataResult = await pool.query(query, params);
+
+    // Get total count for pagination
+    let countQuery = `
+      SELECT COUNT(*) FROM "IMUActivityWindows"
+      WHERE collar_id = $1 AND timestamp >= $2 AND timestamp <= $3
+        `;
+    const countParams = [collarId, startTime, endTime];
+    if (activityType) {
+      countQuery += ' AND activity_type = $4';
+      countParams.push(activityType);
+    }
+    const countResult = await pool.query(countQuery, countParams);
+
+    res.status(200).json({
+      collar_id: collarId,
+      time_range: { start: startTime, end: endTime },
+      total_count: parseInt(countResult.rows[0].count),
+      data: dataResult.rows
+    });
+  } catch (error) {
+    console.error('Error fetching activity history:', error);
+    res.status(500).send({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/collars/:id/activity/summary - Activity summary stats
+app.get('/api/collars/:id/activity/summary', async (req, res) => {
+  const collarId = parseInt(req.params.id, 10);
+  if (Number.isNaN(collarId)) {
+    return res.status(400).send({ error: 'Invalid collar id' });
+  }
+
+  const {
+    startTime = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    endTime = new Date().toISOString(),
+    granularity = 'total'
+  } = req.query;
+
+  try {
+    // Get activity type breakdown
+    const summaryResult = await pool.query(`
+      SELECT 
+        activity_type,
+        COUNT(*) as window_count,
+        SUM(window_duration_sec) / 60.0 as total_minutes
+      FROM "IMUActivityWindows"
+      WHERE collar_id = $1 AND timestamp >= $2 AND timestamp <= $3
+      GROUP BY activity_type
+        `, [collarId, startTime, endTime]);
+
+    // Calculate percentages
+    const totalMinutes = summaryResult.rows.reduce((sum, r) => sum + parseFloat(r.total_minutes || 0), 0);
+    const summary = {};
+    summaryResult.rows.forEach(row => {
+      summary[row.activity_type] = {
+        total_minutes: Math.round(parseFloat(row.total_minutes || 0)),
+        percentage: totalMinutes > 0
+          ? Math.round((parseFloat(row.total_minutes) / totalMinutes) * 1000) / 10
+          : 0,
+        window_count: parseInt(row.window_count)
+      };
+    });
+
+    // Get daily breakdown if requested
+    let dailyBreakdown = null;
+    if (granularity === 'daily' || granularity === 'hourly') {
+      const truncUnit = granularity === 'hourly' ? 'hour' : 'day';
+      const breakdownResult = await pool.query(`
+        SELECT 
+          date_trunc('${truncUnit}', timestamp) as period,
+        activity_type,
+        SUM(window_duration_sec) / 60.0 as minutes
+        FROM "IMUActivityWindows"
+        WHERE collar_id = $1 AND timestamp >= $2 AND timestamp <= $3
+        GROUP BY period, activity_type
+        ORDER BY period
+        `, [collarId, startTime, endTime]);
+
+      // Pivot the data
+      const periodMap = new Map();
+      breakdownResult.rows.forEach(row => {
+        const periodKey = row.period.toISOString();
+        if (!periodMap.has(periodKey)) {
+          periodMap.set(periodKey, { date: periodKey });
+        }
+        periodMap.get(periodKey)[row.activity_type] = Math.round(parseFloat(row.minutes));
+      });
+      dailyBreakdown = Array.from(periodMap.values());
+    }
+
+    const response = {
+      collar_id: collarId,
+      time_range: { start: startTime, end: endTime },
+      total_minutes: Math.round(totalMinutes),
+      summary: summary
+    };
+
+    if (dailyBreakdown) {
+      response.daily_breakdown = dailyBreakdown;
+    }
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Error fetching activity summary:', error);
+    res.status(500).send({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/activity/alerts - Cross-herd anomaly detection
+app.get('/api/activity/alerts', async (req, res) => {
+  const { lookback_hours = 24 } = req.query;
+  const lookbackMs = parseInt(lookback_hours) * 60 * 60 * 1000;
+  const cutoffTime = new Date(Date.now() - lookbackMs).toISOString();
+
+  try {
+    const alerts = [];
+
+    // 1. Extended lying detection (> 4 hours continuous lying)
+    const extendedLyingResult = await pool.query(`
+      WITH lying_sessions AS(
+          SELECT 
+          collar_id,
+          timestamp,
+          activity_type,
+          LAG(activity_type) OVER(PARTITION BY collar_id ORDER BY timestamp) as prev_activity,
+          LAG(timestamp) OVER(PARTITION BY collar_id ORDER BY timestamp) as prev_timestamp
+        FROM "IMUActivityWindows"
+        WHERE timestamp >= $1
+        ),
+        lying_starts AS(
+          SELECT collar_id, timestamp as start_time
+        FROM lying_sessions
+        WHERE activity_type = 'lying' AND(prev_activity IS NULL OR prev_activity != 'lying')
+        )
+      SELECT 
+        ls.collar_id,
+        ls.start_time,
+        EXTRACT(EPOCH FROM(NOW() - ls.start_time)) / 3600 as lying_hours
+      FROM lying_starts ls
+      LEFT JOIN "IMUActivityWindows" iaw ON 
+        iaw.collar_id = ls.collar_id AND 
+        iaw.timestamp > ls.start_time AND 
+        iaw.activity_type != 'lying'
+      WHERE iaw.id IS NULL
+      GROUP BY ls.collar_id, ls.start_time
+      HAVING EXTRACT(EPOCH FROM(NOW() - ls.start_time)) / 3600 > 4
+        `, [cutoffTime]);
+
+    for (const row of extendedLyingResult.rows) {
+      const cattleInfo = await pool.query(`
+        SELECT c.name FROM "Collars" col 
+        LEFT JOIN "Cattle" c ON col.cattle_id = c.id 
+        WHERE col.collar_id = $1
+        `, [row.collar_id]);
+
+      alerts.push({
+        collar_id: row.collar_id,
+        cattle_name: cattleInfo.rows[0]?.name || null,
+        alert_type: 'extended_lying',
+        description: `Lying continuously for ${parseFloat(row.lying_hours).toFixed(1)
+          } hours`,
+        severity: parseFloat(row.lying_hours) > 6 ? 'critical' : 'warning',
+        detected_at: new Date().toISOString(),
+        last_activity: {
+          type: 'lying',
+          since: row.start_time
+        }
+      });
+    }
+
+    // 2. No recent data (collar hasn't sent activity in > 4 hours)
+    const noDataResult = await pool.query(`
+  SELECT
+  col.collar_id,
+    c.name as cattle_name,
+    MAX(iaw.timestamp) as last_activity_time
+      FROM "Collars" col
+      LEFT JOIN "Cattle" c ON col.cattle_id = c.id
+      LEFT JOIN "IMUActivityWindows" iaw ON iaw.collar_id = col.collar_id
+      WHERE col.status = 'active' AND col.collar_id != $1
+      GROUP BY col.collar_id, c.name
+      HAVING MAX(iaw.timestamp) IS NULL OR MAX(iaw.timestamp) < NOW() - INTERVAL '4 hours'
+    `, [UNASSIGNED_COLLAR_ID]);
+
+    for (const row of noDataResult.rows) {
+      alerts.push({
+        collar_id: row.collar_id,
+        cattle_name: row.cattle_name,
+        alert_type: 'no_recent_data',
+        description: row.last_activity_time
+          ? `No activity data since ${new Date(row.last_activity_time).toISOString()} `
+          : 'No activity data ever recorded',
+        severity: 'warning',
+        detected_at: new Date().toISOString(),
+        last_activity: row.last_activity_time ? {
+          time: row.last_activity_time
+        } : null
+      });
+    }
+
+    // 3. High unknown activity rate (> 30% unknown classifications)
+    const unknownRateResult = await pool.query(`
+  SELECT
+  collar_id,
+    COUNT(*) FILTER(WHERE activity_type = 'unknown') as unknown_count,
+      COUNT(*) as total_count,
+      ROUND(COUNT(*) FILTER(WHERE activity_type = 'unknown'):: numeric / COUNT(*):: numeric * 100, 1) as unknown_pct
+      FROM "IMUActivityWindows"
+      WHERE timestamp >= $1
+      GROUP BY collar_id
+      HAVING COUNT(*) FILTER(WHERE activity_type = 'unknown'):: numeric / COUNT(*):: numeric > 0.3
+    `, [cutoffTime]);
+
+    for (const row of unknownRateResult.rows) {
+      const cattleInfo = await pool.query(`
+        SELECT c.name FROM "Collars" col 
+        LEFT JOIN "Cattle" c ON col.cattle_id = c.id 
+        WHERE col.collar_id = $1
+    `, [row.collar_id]);
+
+      alerts.push({
+        collar_id: row.collar_id,
+        cattle_name: cattleInfo.rows[0]?.name || null,
+        alert_type: 'low_confidence_patterns',
+        description: `${row.unknown_pct}% of activity classifications are unknown`,
+        severity: 'warning',
+        detected_at: new Date().toISOString()
+      });
+    }
+
+    // Build summary
+    const bySeverity = { warning: 0, critical: 0 };
+    alerts.forEach(a => bySeverity[a.severity]++);
+
+    res.status(200).json({
+      timestamp: new Date().toISOString(),
+      lookback_hours: parseInt(lookback_hours),
+      alerts: alerts,
+      summary: {
+        total_alerts: alerts.length,
+        by_severity: bySeverity
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching activity alerts:', error);
+    res.status(500).send({ error: 'Internal server error' });
+  }
+});
+
 // --- Start Server ---
 app.listen(port, () => {
-  console.log(`Backend server listening on port ${port}`);
+  console.log(`Backend server listening on port ${port} `);
 });
