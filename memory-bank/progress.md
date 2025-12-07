@@ -1,5 +1,20 @@
 # Progress Log
 
+## 2025-12-07 - Virtual Fencing & Graduated Alert System
+- Implemented geofence logic in BeagleBone simulator (`beaglebone_vm.py`)
+- Added geofence utilities: `haversine_distance`, `point_in_polygon`, `distance_to_polygon_edge`
+- Implemented graduated alert system:
+  - Stage 1 (warning_1): 10-15m from boundary → Sound alert (🔊)
+  - Stage 2 (warning_2): 5-10m from boundary → Intensified sound (🔊🔊)
+  - Stage 3 (breach): <5m or outside fence → Electric shock (⚡)
+- Added fence sync mechanism: BeagleBone fetches fences via `GET /api/fences/sync` (60s cache)
+- Database: Added `alert_state` column to Collars, `is_active` column to Fences
+- Backend: New `/api/fences/sync` and `/api/fences/:id/toggle` endpoints
+- Backend: `POST /api/collars/data` now accepts and stores `alert_state`
+- Frontend LiveMap: Blinking markers with speaker/lightning overlays for alert states
+- Frontend: New `GeofenceAlertNotification.js` component for toast notifications
+- Frontend Dashboard: Activity feed now prioritizes geofence alerts
+
 ## 2025-12-06 - BeagleBone Simulation & Backend Fixes
 - Created `simulator/beaglebone_vm.py` to simulate BeagleBone-to-Backend communication
 - Script parses raw LoRa packets, sends JSON to backend, handles pending config responses

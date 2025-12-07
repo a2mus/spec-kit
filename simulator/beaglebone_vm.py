@@ -7,7 +7,185 @@ import math
 
 # Configuration
 BACKEND_URL = "http://localhost:3001/api/collars/data"
+FENCE_SYNC_URL = "http://localhost:3001/api/fences/sync"
 HEADERS = {'Content-Type': 'application/json'}
+
+# Geofence configuration (in meters)
+BUFFER_ZONE_BOUNDARY = 10  # 10m buffer zone from fence edge
+WARNING_1_DISTANCE = 15    # Stage 1: Sound alert at 10-15m from boundary
+WARNING_2_DISTANCE = 10    # Stage 2: Intensified sound at 5-10m from boundary
+BREACH_DISTANCE = 5        # Stage 3: Electric shock at 0-5m from boundary
+
+# Alert states
+ALERT_SAFE = 'safe'
+ALERT_WARNING_1 = 'warning_1'
+ALERT_WARNING_2 = 'warning_2'
+ALERT_BREACH = 'breach'
+
+# Fence cache
+cached_fences = []
+last_fence_sync = 0
+FENCE_SYNC_INTERVAL = 60  # Sync fences every 60 seconds
+
+# =============================================
+# GEOFENCE UTILITIES
+# =============================================
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+    """
+    Calculate the great-circle distance between two points on Earth.
+    Returns distance in meters.
+    """
+    R = 6371000  # Earth's radius in meters
+    
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+    
+    a = math.sin(delta_phi / 2) ** 2 + \
+        math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    
+    return R * c
+
+def point_in_polygon(lat, lon, polygon):
+    """
+    Check if a point is inside a polygon using ray casting algorithm.
+    polygon: list of dicts with 'lat' and 'lon' keys
+    Returns True if point is inside polygon.
+    """
+    n = len(polygon)
+    inside = False
+    
+    j = n - 1
+    for i in range(n):
+        xi, yi = polygon[i]['lat'], polygon[i]['lon']
+        xj, yj = polygon[j]['lat'], polygon[j]['lon']
+        
+        if ((yi > lon) != (yj > lon)) and \
+           (lat < (xj - xi) * (lon - yi) / (yj - yi) + xi):
+            inside = not inside
+        j = i
+    
+    return inside
+
+def distance_to_line_segment(point_lat, point_lon, lat1, lon1, lat2, lon2):
+    """
+    Calculate minimum distance from a point to a line segment.
+    Returns distance in meters.
+    """
+    # Vector from p1 to p2
+    dx = lat2 - lat1
+    dy = lon2 - lon1
+    
+    if dx == 0 and dy == 0:
+        # p1 and p2 are the same point
+        return haversine_distance(point_lat, point_lon, lat1, lon1)
+    
+    # Parameter t for the closest point on the line
+    t = max(0, min(1, ((point_lat - lat1) * dx + (point_lon - lon1) * dy) / (dx * dx + dy * dy)))
+    
+    # Closest point on the line segment
+    closest_lat = lat1 + t * dx
+    closest_lon = lon1 + t * dy
+    
+    return haversine_distance(point_lat, point_lon, closest_lat, closest_lon)
+
+def distance_to_polygon_edge(lat, lon, polygon):
+    """
+    Calculate minimum distance from a point to any edge of a polygon.
+    Returns distance in meters.
+    """
+    min_distance = float('inf')
+    n = len(polygon)
+    
+    for i in range(n):
+        j = (i + 1) % n
+        dist = distance_to_line_segment(
+            lat, lon,
+            polygon[i]['lat'], polygon[i]['lon'],
+            polygon[j]['lat'], polygon[j]['lon']
+        )
+        min_distance = min(min_distance, dist)
+    
+    return min_distance
+
+def fetch_active_fences():
+    """
+    Fetch active fences from the backend API.
+    Returns list of fence polygons.
+    """
+    global cached_fences, last_fence_sync
+    
+    current_time = time.time()
+    if current_time - last_fence_sync < FENCE_SYNC_INTERVAL and cached_fences:
+        return cached_fences
+    
+    try:
+        response = requests.get(FENCE_SYNC_URL, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            cached_fences = data.get('fences', [])
+            last_fence_sync = current_time
+            print(f"[BeagleBone] 🔄 Synced {len(cached_fences)} fences from backend")
+            return cached_fences
+    except Exception as e:
+        print(f"[BeagleBone] ⚠️ Failed to sync fences: {e}")
+    
+    return cached_fences
+
+def check_geofence_status(lat, lon):
+    """
+    Check the geofence status for a given position.
+    Returns: alert_state ('safe', 'warning_1', 'warning_2', 'breach')
+    """
+    fences = fetch_active_fences()
+    
+    if not fences:
+        return ALERT_SAFE  # No fences defined, assume safe
+    
+    worst_alert = ALERT_SAFE
+    
+    for fence in fences:
+        polygon = fence.get('polygon', [])
+        if len(polygon) < 3:
+            continue
+        
+        is_inside = point_in_polygon(lat, lon, polygon)
+        distance = distance_to_polygon_edge(lat, lon, polygon)
+        
+        if not is_inside:
+            # Outside the fence - BREACH!
+            return ALERT_BREACH
+        
+        # Inside fence - check distance to boundary
+        if distance < BREACH_DISTANCE:
+            # Within 5m of boundary - Stage 3 (but still inside)
+            worst_alert = ALERT_WARNING_2
+        elif distance < WARNING_2_DISTANCE:
+            # Between 5-10m - Stage 2
+            if worst_alert not in [ALERT_WARNING_2, ALERT_BREACH]:
+                worst_alert = ALERT_WARNING_2
+        elif distance < WARNING_1_DISTANCE:
+            # Between 10-15m - Stage 1
+            if worst_alert == ALERT_SAFE:
+                worst_alert = ALERT_WARNING_1
+    
+    return worst_alert
+
+def get_alert_action(alert_state):
+    """
+    Get the collar action based on alert state.
+    Returns description of what the collar should do.
+    """
+    actions = {
+        ALERT_SAFE: "Normal operation",
+        ALERT_WARNING_1: "🔊 Sound Alert - Low frequency beep",
+        ALERT_WARNING_2: "🔊🔊 Sound Alert - High frequency rapid beep",
+        ALERT_BREACH: "⚡ ELECTRIC SHOCK - Boundary breach!"
+    }
+    return actions.get(alert_state, "Unknown state")
 
 # Simulation parameters - Bounding box for cattle spawn area
 # SW: 36°44′56.617419″N, 3°19′40.933086″E → NE: 36°45′11.901893″N, 3°20′11.274755″E
@@ -51,6 +229,10 @@ class SimulatedCattle:
         self.roll = random.uniform(-5, 5)
         self.pitch = random.uniform(-5, 5)
         self.yaw = random.uniform(0, 360)
+        
+        # Geofence alert state
+        self.alert_state = ALERT_SAFE
+        self.previous_alert_state = ALERT_SAFE
         
         print(f"  🐄 Cattle {collar_id} spawned at ({lat:.6f}, {lon:.6f}) - State: {self.state}")
     
@@ -130,6 +312,15 @@ class SimulatedCattle:
         
         # Battery drain
         self.battery = max(3.0, self.battery - self.battery_drain)
+        
+        # Check geofence status and update alert state
+        self.previous_alert_state = self.alert_state
+        self.alert_state = check_geofence_status(self.lat, self.lon)
+        
+        # Log alert state changes
+        if self.alert_state != self.previous_alert_state:
+            print(f"  ⚠️ Cattle {self.collar_id} ALERT CHANGE: {self.previous_alert_state} → {self.alert_state}")
+            print(f"      Action: {get_alert_action(self.alert_state)}")
     
     def generate_lora_packet(self):
         """Generate a LoRa packet string simulating collar transmission."""
@@ -254,6 +445,9 @@ def parse_lora_packet(raw_string):
     
     lat = float(lat_raw[:-1]) * (1 if lat_raw.endswith('N') else -1)
     lon = float(lon_raw[:-1]) * (1 if lon_raw.endswith('E') else -1)
+    
+    # Check geofence status for this position
+    alert_state = check_geofence_status(lat, lon)
 
     parsed_data = {
         "collar_id": int(data.get('ID', 0)),
@@ -268,7 +462,8 @@ def parse_lora_packet(raw_string):
         "pitch": float(data.get('P', 0)),
         "yaw": float(data.get('Y', 0)),
         "heart_rate": random.randint(50, 80),
-        "spo2": random.randint(95, 100)
+        "spo2": random.randint(95, 100),
+        "alert_state": alert_state
     }
     
     return parsed_data

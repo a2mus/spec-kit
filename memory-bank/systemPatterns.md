@@ -107,3 +107,38 @@ spo2 90-95%
 - Environment variables for DB connection
 - Reserved collar_id = 9999 for unassigned
 - Collar IDs assigned starting from 100
+
+## Virtual Fencing Pattern
+
+### Geofence Alert Flow
+```mermaid
+graph TD
+    A[Collar Position Update] --> B{Check Fences}
+    B --> C[For each active fence]
+    C --> D{Inside Fence?}
+    D -- No --> E[BREACH - Electric Shock]
+    D -- Yes --> F{Distance to Edge}
+    F -- "> 15m" --> G[SAFE]
+    F -- "10-15m" --> H[WARNING_1 - Sound]
+    F -- "5-10m" --> I[WARNING_2 - Intense Sound]
+    F -- "< 5m" --> J[Near Breach - Intense Sound]
+    E & G & H & I & J --> K[Send alert_state to Backend]
+    K --> L[Frontend Updates Marker]
+```
+
+### Buffer Zone Configuration (in meters)
+| Constant | Value | Description |
+|----------|-------|-------------|
+| WARNING_1_DISTANCE | 15 | Outer warning zone |
+| WARNING_2_DISTANCE | 10 | Inner warning zone |
+| BREACH_DISTANCE | 5 | Critical zone |
+
+### Geofence Utilities
+- `haversine_distance(lat1, lon1, lat2, lon2)` - Great circle distance in meters
+- `point_in_polygon(lat, lon, polygon)` - Ray casting algorithm
+- `distance_to_polygon_edge(lat, lon, polygon)` - Minimum distance to boundary
+
+### Fence Sync Pattern
+- BeagleBone fetches fences from `GET /api/fences/sync` every 60 seconds
+- Fences are cached locally to reduce API calls
+- Only active fences (`is_active = TRUE`) are synced

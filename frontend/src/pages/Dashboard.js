@@ -12,7 +12,8 @@ import {
     MapPin,
     Activity,
     Thermometer,
-    Battery
+    Battery,
+    Fence
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import './Dashboard.css';
@@ -89,11 +90,15 @@ function Dashboard() {
 
     // Calculate stats
     const totalCattle = collars.length;
-    const healthyCount = collars.filter(c => c.body_temp >= 37 && c.body_temp <= 39.5).length;
+    const healthyCount = collars.filter(c => c.body_temp >= 37 && c.body_temp <= 39.5 && (!c.alert_state || c.alert_state === 'safe')).length;
     const warningCount = collars.filter(c => c.body_temp > 39.5 && c.body_temp <= 40).length;
     const alertCount = collars.filter(c => c.body_temp > 40 || c.body_temp < 37).length;
     const lowBatteryCount = collars.filter(c => c.battery_voltage < 3.3).length;
     const avgHealth = totalCattle > 0 ? ((healthyCount / totalCattle) * 10).toFixed(1) : 0;
+
+    // Geofence alerts
+    const geofenceBreachCount = collars.filter(c => c.alert_state === 'breach').length;
+    const geofenceWarningCount = collars.filter(c => c.alert_state === 'warning_1' || c.alert_state === 'warning_2').length;
 
     // Chart data
     const healthChartData = {
@@ -121,19 +126,53 @@ function Dashboard() {
         cutout: '70%'
     };
 
-    // Recent activity (simulated based on collar data)
-    const recentActivity = collars.slice(0, 5).map((collar, index) => ({
-        id: index,
-        type: collar.body_temp > 39.5 ? 'health' : collar.battery_voltage < 3.3 ? 'battery' : 'location',
-        title: collar.body_temp > 39.5
-            ? `High temperature detected`
-            : collar.battery_voltage < 3.3
-                ? 'Low battery warning'
-                : 'Location update',
-        collarId: collar.collar_id,
-        time: new Date(collar.timestamp).toLocaleTimeString(),
-        value: collar.body_temp > 39.5 ? `${collar.body_temp}°C` : collar.battery_voltage < 3.3 ? `${collar.battery_voltage}V` : null
-    }));
+    // Recent activity (based on collar data with geofence alerts priority)
+    const recentActivity = collars
+        .sort((a, b) => {
+            // Prioritize geofence alerts
+            const alertPriority = { 'breach': 3, 'warning_2': 2, 'warning_1': 1, 'safe': 0 };
+            const aPriority = alertPriority[a.alert_state] || 0;
+            const bPriority = alertPriority[b.alert_state] || 0;
+            return bPriority - aPriority;
+        })
+        .slice(0, 5)
+        .map((collar, index) => {
+            // Determine activity type with geofence priority
+            let type = 'location';
+            let title = 'Location update';
+            let value = null;
+
+            if (collar.alert_state === 'breach') {
+                type = 'geofence';
+                title = '⚡ Geofence BREACH - Shock activated';
+                value = 'CRITICAL';
+            } else if (collar.alert_state === 'warning_2') {
+                type = 'geofence';
+                title = '🔊 Near boundary - Sound alert';
+                value = 'WARNING';
+            } else if (collar.alert_state === 'warning_1') {
+                type = 'geofence';
+                title = '🔊 Approaching boundary';
+                value = 'CAUTION';
+            } else if (collar.body_temp > 39.5) {
+                type = 'health';
+                title = 'High temperature detected';
+                value = `${collar.body_temp}°C`;
+            } else if (collar.battery_voltage < 3.3) {
+                type = 'battery';
+                title = 'Low battery warning';
+                value = `${collar.battery_voltage}V`;
+            }
+
+            return {
+                id: index,
+                type,
+                title,
+                collarId: collar.collar_id,
+                time: new Date(collar.timestamp).toLocaleTimeString(),
+                value
+            };
+        });
 
     const mapCenter = collars.length > 0
         ? [collars[0].latitude, collars[0].longitude]
@@ -233,6 +272,7 @@ function Dashboard() {
                                         {item.type === 'health' && <Thermometer size={18} />}
                                         {item.type === 'battery' && <Battery size={18} />}
                                         {item.type === 'location' && <MapPin size={18} />}
+                                        {item.type === 'geofence' && <Fence size={18} />}
                                     </div>
                                     <div className="activity-content">
                                         <div className="activity-title">

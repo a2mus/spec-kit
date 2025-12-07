@@ -30,10 +30,41 @@ const latestCollarData = new Map();
 
 app.get('/api/fences', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, name, geo_json FROM "Fences"');
+    const result = await pool.query('SELECT id, name, geo_json, is_active FROM "Fences"');
     res.status(200).json(result.rows);
   } catch (error) {
     console.error('Error fetching fences:', error);
+    res.status(500).send({ error: 'Internal server error' });
+  }
+});
+
+// Endpoint for BeagleBone to sync active fences
+app.get('/api/fences/sync', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, name, geo_json 
+      FROM "Fences" 
+      WHERE is_active = TRUE
+    `);
+
+    // Format fences for BeagleBone processing
+    const fences = result.rows.map(fence => ({
+      id: fence.id,
+      name: fence.name,
+      // Convert GeoJSON to simple coordinate array for easier processing
+      polygon: fence.geo_json.coordinates[0].map(coord => ({
+        lat: coord[1],
+        lon: coord[0]
+      }))
+    }));
+
+    res.status(200).json({
+      timestamp: new Date().toISOString(),
+      fence_count: fences.length,
+      fences: fences
+    });
+  } catch (error) {
+    console.error('Error syncing fences:', error);
     res.status(500).send({ error: 'Internal server error' });
   }
 });
@@ -45,11 +76,37 @@ app.post('/api/fences', async (req, res) => {
   }
 
   try {
-    const query = 'INSERT INTO "Fences" (name, geo_json) VALUES ($1, $2) RETURNING id';
+    const query = 'INSERT INTO "Fences" (name, geo_json, is_active) VALUES ($1, $2, TRUE) RETURNING id';
     const result = await pool.query(query, [name, geo_json]);
     res.status(201).send({ message: 'Fence created successfully', fenceId: result.rows[0].id });
   } catch (error) {
     console.error('Error creating fence:', error);
+    res.status(500).send({ error: 'Internal server error' });
+  }
+});
+
+// Toggle fence active status
+app.patch('/api/fences/:id/toggle', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) {
+    return res.status(400).send({ error: 'Invalid fence id' });
+  }
+
+  try {
+    const result = await pool.query(`
+      UPDATE "Fences" 
+      SET is_active = NOT is_active, updated_at = NOW() 
+      WHERE id = $1 
+      RETURNING id, name, is_active
+    `, [id]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).send({ error: 'Fence not found' });
+    }
+
+    res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error toggling fence:', error);
     res.status(500).send({ error: 'Internal server error' });
   }
 });
@@ -332,15 +389,15 @@ app.post('/api/collars/data', async (req, res) => {
       if (collarResult.rowCount === 0) {
         // First time seeing this collar ID - register it
         await pool.query(
-          'INSERT INTO "Collars" (collar_id, status, last_seen) VALUES ($1, $2, $3)',
-          [data.collar_id, 'active', new Date(data.timestamp)]
+          'INSERT INTO "Collars" (collar_id, status, last_seen, alert_state) VALUES ($1, $2, $3, $4)',
+          [data.collar_id, 'active', new Date(data.timestamp), data.alert_state || 'safe']
         );
       } else {
-        // Update last_seen and check for pending config
+        // Update last_seen, alert_state and check for pending config
         const collar = collarResult.rows[0];
         await pool.query(
-          'UPDATE "Collars" SET last_seen = $1 WHERE collar_id = $2',
-          [new Date(data.timestamp), data.collar_id]
+          'UPDATE "Collars" SET last_seen = $1, alert_state = $2 WHERE collar_id = $3',
+          [new Date(data.timestamp), data.alert_state || collar.alert_state || 'safe', data.collar_id]
         );
 
         // If there's a pending new ID, include it in response
@@ -353,7 +410,8 @@ app.post('/api/collars/data', async (req, res) => {
     // Update the in-memory store for real-time updates
     latestCollarData.set(data.collar_id, {
       ...data,
-      activity: null // Activity will be computed server-side
+      activity: null, // Activity will be computed server-side
+      alert_state: data.alert_state || 'safe'
     });
 
     // Insert into location history
@@ -429,10 +487,10 @@ app.get('/api/collars/latest', async (req, res) => {
     // Enrich with cattle info from database
     const dataArray = Array.from(latestCollarData.values());
 
-    // Get collar-cattle mapping
+    // Get collar-cattle mapping including alert_state
     const collarResult = await pool.query(`
       SELECT col.collar_id, c.name as cattle_name, c.tag_number,
-             col.status, col.cattle_id
+             col.status, col.cattle_id, col.alert_state
       FROM "Collars" col
       LEFT JOIN "Cattle" c ON col.cattle_id = c.id
     `);
@@ -440,14 +498,15 @@ app.get('/api/collars/latest', async (req, res) => {
     const collarMap = new Map();
     collarResult.rows.forEach(row => collarMap.set(row.collar_id, row));
 
-    // Enrich data with cattle info
+    // Enrich data with cattle info and alert_state
     const enrichedData = dataArray.map(data => {
       const collarInfo = collarMap.get(data.collar_id);
       return {
         ...data,
         cattle_name: collarInfo?.cattle_name || null,
         tag_number: collarInfo?.tag_number || null,
-        collar_status: collarInfo?.status || 'unknown'
+        collar_status: collarInfo?.status || 'unknown',
+        alert_state: data.alert_state || collarInfo?.alert_state || 'safe'
       };
     });
 

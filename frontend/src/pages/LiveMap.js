@@ -19,6 +19,7 @@ import {
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import './LiveMap.css';
+import GeofenceAlertNotification from '../components/GeofenceAlertNotification';
 
 // Component to fit map bounds to fences and cattle
 function FitBounds({ fences, collars, hasInitialFit }) {
@@ -65,22 +66,40 @@ L.Icon.Default.mergeOptions({
 
 const API_URL = 'http://localhost:3001';
 
-// Create custom cow icons for different statuses
-const createCowIcon = (status) => {
+// Create custom cow icons for different statuses (health + geofence alerts)
+const createCowIcon = (status, alertState = 'safe') => {
     const colors = {
         healthy: '#10B981',
         warning: '#F59E0B',
         alert: '#EF4444'
     };
 
+    // Determine if we should show geofence alert overlay
+    const isAlerting = alertState && alertState !== 'safe';
+    const blinkClass = isAlerting ? 'blink-alert' : '';
+
+    // Get alert icon based on state
+    let alertIcon = '';
+    if (alertState === 'warning_1') {
+        // Stage 1: Single speaker icon
+        alertIcon = `<div class="alert-overlay speaker">🔊</div>`;
+    } else if (alertState === 'warning_2') {
+        // Stage 2: Double speaker icon (intensified)
+        alertIcon = `<div class="alert-overlay speaker-intense">🔊🔊</div>`;
+    } else if (alertState === 'breach') {
+        // Stage 3: Lightning bolt (shock)
+        alertIcon = `<div class="alert-overlay shock">⚡</div>`;
+    }
+
     return new L.DivIcon({
         className: 'custom-cattle-marker',
         html: `
-      <div class="cattle-marker ${status}">
+      <div class="cattle-marker ${status} ${blinkClass}">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="${colors[status]}">
           <circle cx="12" cy="12" r="10" fill="${colors[status]}" opacity="0.2"/>
           <circle cx="12" cy="12" r="6" fill="${colors[status]}"/>
         </svg>
+        ${alertIcon}
       </div>
     `,
         iconSize: [32, 32],
@@ -91,13 +110,33 @@ const createCowIcon = (status) => {
 
 // Get collar status based on health metrics
 const getCollarStatus = (collar) => {
+    // Geofence breach takes priority
+    if (collar.alert_state === 'breach') {
+        return 'alert';
+    }
+    // Health-based status
     if (collar.body_temp > 40 || collar.body_temp < 37 || collar.battery_voltage < 3.0) {
         return 'alert';
+    }
+    // Geofence warning
+    if (collar.alert_state === 'warning_1' || collar.alert_state === 'warning_2') {
+        return 'warning';
     }
     if (collar.body_temp > 39.5 || collar.battery_voltage < 3.3) {
         return 'warning';
     }
     return 'healthy';
+};
+
+// Get alert state display text
+const getAlertStateDisplay = (alertState) => {
+    const states = {
+        'safe': { text: 'Safe', color: '#10B981' },
+        'warning_1': { text: '⚠️ Approaching Boundary', color: '#F59E0B' },
+        'warning_2': { text: '⚠️ Near Boundary', color: '#F97316' },
+        'breach': { text: '🚨 BOUNDARY BREACH', color: '#EF4444' }
+    };
+    return states[alertState] || states['safe'];
 };
 
 // Draw Control Component
@@ -173,6 +212,7 @@ function LiveMap() {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const hasInitialFit = useRef(false);
     const mapRef = useRef(null);
+    const previousCollarsRef = useRef(null);
 
     const fetchFences = async () => {
         try {
@@ -264,6 +304,12 @@ function LiveMap() {
 
     return (
         <div className={`live-map-container ${isFullscreen ? 'fullscreen' : ''}`}>
+            {/* Geofence Alert Notifications */}
+            <GeofenceAlertNotification
+                collars={collars}
+                previousCollarsRef={previousCollarsRef}
+            />
+
             {/* Sidebar */}
             <div className="map-sidebar">
                 {/* Search & Filter */}
@@ -435,19 +481,26 @@ function LiveMap() {
                     {/* Cattle Markers */}
                     {filteredCollars.map(collar => {
                         const status = getCollarStatus(collar);
+                        const alertDisplay = getAlertStateDisplay(collar.alert_state);
                         return (
                             <Marker
                                 key={collar.collar_id}
                                 position={[collar.latitude, collar.longitude]}
-                                icon={createCowIcon(status)}
+                                icon={createCowIcon(status, collar.alert_state)}
                             >
                                 <Popup>
                                     <div className="popup-content">
                                         <h4>Collar #{collar.collar_id}</h4>
                                         <div className="popup-row">
-                                            <span className="popup-label">Status</span>
+                                            <span className="popup-label">Health Status</span>
                                             <span className={`badge badge-${status === 'healthy' ? 'success' : status === 'warning' ? 'warning' : 'alert'}`}>
                                                 {status}
+                                            </span>
+                                        </div>
+                                        <div className="popup-row">
+                                            <span className="popup-label">Geofence</span>
+                                            <span className="popup-value" style={{ color: alertDisplay.color, fontWeight: collar.alert_state !== 'safe' ? 'bold' : 'normal' }}>
+                                                {alertDisplay.text}
                                             </span>
                                         </div>
                                         <div className="popup-row">

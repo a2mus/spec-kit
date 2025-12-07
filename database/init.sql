@@ -27,6 +27,7 @@ CREATE TABLE "Collars" (
     "cattle_id" INTEGER REFERENCES "Cattle"(id) ON DELETE SET NULL,
     "status" VARCHAR(20) DEFAULT 'unassigned', -- unassigned, active, inactive
     "pending_new_id" INTEGER,                -- New ID to send to collar (NULL if none)
+    "alert_state" VARCHAR(20) DEFAULT 'safe', -- safe, warning_1, warning_2, breach
     "last_seen" TIMESTAMPTZ,
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -43,6 +44,7 @@ CREATE TABLE "Fences" (
     "id" SERIAL PRIMARY KEY,
     "name" VARCHAR(255),
     "geo_json" JSONB NOT NULL,
+    "is_active" BOOLEAN DEFAULT TRUE,        -- Whether this fence is active for geofence checking
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
