@@ -9,24 +9,27 @@ import React, { useState, useEffect, useCallback } from 'react';
 function GeofenceAlertNotification({ collars, previousCollarsRef }) {
     const [alerts, setAlerts] = useState([]);
 
-    const getAlertInfo = (alertState) => {
+    const getAlertInfo = (alertState, direction) => {
+        const directionText = direction === 'exiting' ? '(Exiting)' :
+            direction === 'entering' ? '(Entering)' : '';
+
         const info = {
             'warning_1': {
                 icon: '🔊',
                 title: 'Approaching Boundary',
-                message: 'Collar has entered the warning zone (10-15m from fence)',
+                message: `Collar has entered the warning zone (10-15m). ${directionText}`,
                 severity: 'warning'
             },
             'warning_2': {
                 icon: '🔊🔊',
                 title: 'Near Boundary',
-                message: 'Collar is very close to fence boundary (5-10m)',
+                message: `Collar is very close to fence boundary (5-10m). ${directionText}`,
                 severity: 'warning'
             },
             'breach': {
                 icon: '⚡',
                 title: 'BOUNDARY BREACH',
-                message: 'Electric shock signal activated - collar has breached the fence',
+                message: 'Electric shock signal activated - collar has breached the fence!',
                 severity: 'critical'
             }
         };
@@ -47,21 +50,36 @@ function GeofenceAlertNotification({ collars, previousCollarsRef }) {
                 c => c.collar_id === collar.collar_id
             );
 
-            // Check if alert state changed and is now in an alert state
-            if (prevCollar &&
-                collar.alert_state !== prevCollar.alert_state &&
-                collar.alert_state !== 'safe') {
+            // Check if alert state changed
+            if (prevCollar && collar.alert_state !== prevCollar.alert_state) {
 
-                const alertInfo = getAlertInfo(collar.alert_state);
-                if (alertInfo) {
+                // Case 1: Returned to safe zone (Previous was not safe, current IS safe)
+                if (collar.alert_state === 'safe' && prevCollar.alert_state !== 'safe') {
                     newAlerts.push({
-                        id: `${collar.collar_id}-${Date.now()}`,
+                        id: `${collar.collar_id}-${Date.now()}-safe`,
                         collar_id: collar.collar_id,
                         cattle_name: collar.cattle_name,
-                        alert_state: collar.alert_state,
-                        ...alertInfo,
+                        alert_state: 'safe',
+                        icon: '✅',
+                        title: 'Returned to Safe Zone',
+                        message: 'Cattle has returned to the safe zone.',
+                        severity: 'success', // You might need to handle this css class
                         timestamp: new Date()
                     });
+                }
+                // Case 2: Entered an alert state (Current is NOT safe)
+                else if (collar.alert_state !== 'safe') {
+                    const alertInfo = getAlertInfo(collar.alert_state, collar.direction);
+                    if (alertInfo) {
+                        newAlerts.push({
+                            id: `${collar.collar_id}-${Date.now()}`,
+                            collar_id: collar.collar_id,
+                            cattle_name: collar.cattle_name,
+                            alert_state: collar.alert_state,
+                            ...alertInfo,
+                            timestamp: new Date()
+                        });
+                    }
                 }
             }
         });

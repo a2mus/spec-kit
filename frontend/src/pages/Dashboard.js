@@ -162,17 +162,25 @@ function Dashboard() {
             let title = 'Location update';
             let value = null;
 
+            const directionIcons = {
+                'exiting': '↗️',
+                'entering': '↙️',
+                'parallel': '↔️',
+                'stationary': '⏸️'
+            };
+            const dirIcon = directionIcons[collar.direction] || '';
+
             if (collar.alert_state === 'breach') {
                 type = 'geofence';
-                title = '⚡ Geofence BREACH - Shock activated';
+                title = `⚡ Geofence BREACH`;
                 value = 'CRITICAL';
             } else if (collar.alert_state === 'warning_2') {
                 type = 'geofence';
-                title = '🔊 Near boundary - Sound alert';
+                title = `${dirIcon} Near boundary - Sound alert`;
                 value = 'WARNING';
             } else if (collar.alert_state === 'warning_1') {
                 type = 'geofence';
-                title = '🔊 Approaching boundary';
+                title = `${dirIcon} Approaching boundary`;
                 value = 'CAUTION';
             } else if (collar.body_temp > 39.5) {
                 type = 'health';
@@ -182,6 +190,11 @@ function Dashboard() {
                 type = 'battery';
                 title = 'Low battery warning';
                 value = `${collar.battery_voltage}V`;
+            } else if (collar.direction && collar.direction !== 'stationary') {
+                // Show movement updates if significant
+                type = 'location';
+                title = `${dirIcon} Movement: ${collar.direction}`;
+                value = null;
             }
 
             return {
