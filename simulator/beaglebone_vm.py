@@ -11,6 +11,7 @@ import os
 from activity_classifier import SlidingWindow, ActivityClassifier, ClassificationResult
 from local_database import LocalDatabase
 from alert_manager import AlertManager
+from direction_tracker import DirectionTracker
 
 # Configuration
 BEAGLEBONE_ID = "BB_01"
@@ -26,6 +27,15 @@ BUFFER_ZONE_BOUNDARY = 10  # 10m buffer zone from fence edge
 WARNING_1_DISTANCE = 15    # Stage 1: Sound alert at 10-15m from boundary
 WARNING_2_DISTANCE = 10    # Stage 2: Intensified sound at 5-10m from boundary
 BREACH_DISTANCE = 5        # Stage 3: Electric shock at 0-5m from boundary
+
+# Escalation timing (seconds) - minimum time in zone before escalating
+ESCALATION_DELAY_SECONDS = 5.0
+
+# Health stress thresholds (disables shock when stressed)
+STRESS_HEART_RATE_MAX = 100  # BPM - above this, disable shocks
+
+# GPS accuracy buffer (meters) - added to all zones when accuracy is low
+GPS_LOW_ACCURACY_BUFFER = 5
 
 # Alert states
 ALERT_SAFE = 'safe'
@@ -148,48 +158,97 @@ def fetch_active_fences():
 
 def check_geofence_status(lat, lon):
     """
-    Check the geofence status for a given position.
+    Check the geofence status for a given position against ALL active fences.
+    
+    Logic:
+    - If outside ALL fences: breach
+    - If inside at least one fence but <5m from any edge: breach  
+    - If 5-10m from any edge: warning_2
+    - If 10-15m from any edge: warning_1
+    - Otherwise: safe
+    
     Returns: alert_state ('safe', 'warning_1', 'warning_2', 'breach')
     """
     fences = fetch_active_fences()
     
+    # Edge case: No active fences
     if not fences:
-        return ALERT_SAFE  # No fences defined, assume safe
+        print("[BeagleBone] ⚠️ No active fences defined - defaulting to 'safe'")
+        return ALERT_SAFE
     
-    worst_alert = ALERT_SAFE
+    # Track aggregated state across all fences
+    is_inside_any = False
+    min_distance = float('inf')
+    valid_fence_count = 0
     
     for fence in fences:
-        polygon = fence.get('polygon', [])
-        if len(polygon) < 3:
+        try:
+            polygon = fence.get('polygon', [])
+            
+            # Skip invalid polygons (need at least 3 vertices)
+            if not polygon or len(polygon) < 3:
+                fence_name = fence.get('name', 'Unknown')
+                print(f"[BeagleBone] ⚠️ Skipping invalid fence '{fence_name}': insufficient vertices")
+                continue
+            
+            valid_fence_count += 1
+            
+            # Check if point is inside this fence
+            is_inside = point_in_polygon(lat, lon, polygon)
+            if is_inside:
+                is_inside_any = True
+            
+            # Calculate distance to this fence's edge
+            distance = distance_to_polygon_edge(lat, lon, polygon)
+            min_distance = min(min_distance, distance)
+            
+        except Exception as e:
+            fence_name = fence.get('name', 'Unknown')
+            print(f"[BeagleBone] ❌ Error processing fence '{fence_name}': {e}")
             continue
-        
-        is_inside = point_in_polygon(lat, lon, polygon)
-        distance = distance_to_polygon_edge(lat, lon, polygon)
-        
-        if not is_inside:
-            # Outside the fence - BREACH!
-            return ALERT_BREACH
-        
-        # Inside fence - check distance to boundary
-        if distance < BREACH_DISTANCE:
-            # Within 5m of boundary - Stage 3 (but still inside)
-            worst_alert = ALERT_WARNING_2
-        elif distance < WARNING_2_DISTANCE:
-            # Between 5-10m - Stage 2
-            if worst_alert not in [ALERT_WARNING_2, ALERT_BREACH]:
-                worst_alert = ALERT_WARNING_2
-        elif distance < WARNING_1_DISTANCE:
-            # Between 10-15m - Stage 1
-            if worst_alert == ALERT_SAFE:
-                worst_alert = ALERT_WARNING_1
     
-    return worst_alert
+    # Edge case: All fences were invalid
+    if valid_fence_count == 0:
+        print("[BeagleBone] ⚠️ No valid fences found - defaulting to 'safe'")
+        return ALERT_SAFE
+    
+    # Determine alert state based on aggregated results
+    
+    # If outside ALL fences - BREACH
+    if not is_inside_any:
+        return ALERT_BREACH
+    
+    # Inside at least one fence - check graduated alerts based on min distance to any edge
+    if min_distance < BREACH_DISTANCE:
+        # Within 5m of any boundary - Stage 3 (critical proximity)
+        return ALERT_BREACH
+    elif min_distance < WARNING_2_DISTANCE:
+        # Between 5-10m from any edge - Stage 2
+        return ALERT_WARNING_2
+    elif min_distance < WARNING_1_DISTANCE:
+        # Between 10-15m from any edge - Stage 1
+        return ALERT_WARNING_1
+    
+    # Safe - inside fence and far from all edges
+    return ALERT_SAFE
 
-def get_alert_action(alert_state):
+def get_alert_action(alert_state, suppressed=False, stress_override=False):
     """
     Get the collar action based on alert state.
+    
+    Args:
+        alert_state: Current alert state
+        suppressed: If True, alerts are suppressed (cattle returning)
+        stress_override: If True, shocks are disabled due to stress
+        
     Returns description of what the collar should do.
     """
+    if suppressed:
+        return "🔇 Alerts SUPPRESSED - cattle returning to safe zone"
+    
+    if stress_override and alert_state == ALERT_BREACH:
+        return "⚠️ SHOCK DISABLED - cattle stressed (elevated heart rate)"
+    
     actions = {
         ALERT_SAFE: "Normal operation",
         ALERT_WARNING_1: "🔊 Sound Alert - Low frequency beep",
@@ -197,6 +256,147 @@ def get_alert_action(alert_state):
         ALERT_BREACH: "⚡ ELECTRIC SHOCK - Boundary breach!"
     }
     return actions.get(alert_state, "Unknown state")
+
+
+def check_geofence_status_advanced(lat, lon, direction_tracker, heart_rate=None, previous_alert_state=None):
+    """
+    Advanced geofence check with direction detection and graduated escalation.
+    
+    This function implements the humane alert protocol:
+    1. Detects movement direction (entering vs exiting fence)
+    2. Suppresses alerts when cattle is returning to safe zone
+    3. Enforces graduated escalation (warning_1 -> warning_2 -> breach)
+    4. Disables shocks when cattle is stressed
+    5. Only applies alerts when cattle is EXITING the fence
+    
+    Args:
+        lat: Cattle latitude
+        lon: Cattle longitude
+        direction_tracker: DirectionTracker instance for this cattle
+        heart_rate: Current heart rate (for stress detection)
+        previous_alert_state: Previous alert state (for escalation logic)
+        
+    Returns:
+        Tuple of (alert_state, action_taken, direction, suppressed, stress_override)
+    """
+    fences = fetch_active_fences()
+    
+    # Edge case: No active fences
+    if not fences:
+        return ALERT_SAFE, 'none', 'stationary', False, False
+    
+    # Calculate position data
+    is_inside_any = False
+    min_distance = float('inf')
+    valid_fence_count = 0
+    
+    for fence in fences:
+        try:
+            polygon = fence.get('polygon', [])
+            if not polygon or len(polygon) < 3:
+                continue
+            
+            valid_fence_count += 1
+            is_inside = point_in_polygon(lat, lon, polygon)
+            if is_inside:
+                is_inside_any = True
+            
+            distance = distance_to_polygon_edge(lat, lon, polygon)
+            min_distance = min(min_distance, distance)
+            
+        except Exception as e:
+            continue
+    
+    if valid_fence_count == 0:
+        return ALERT_SAFE, 'none', 'stationary', False, False
+    
+    # Add position to direction tracker
+    direction_tracker.add_position(lat, lon, min_distance)
+    
+    # Get movement direction
+    direction = direction_tracker.get_direction()
+    is_returning = direction_tracker.check_returning()
+    
+    # Determine base alert zone (position-based)
+    if not is_inside_any:
+        zone_alert = ALERT_BREACH
+    elif min_distance < BREACH_DISTANCE:
+        zone_alert = ALERT_BREACH
+    elif min_distance < WARNING_2_DISTANCE:
+        zone_alert = ALERT_WARNING_2
+    elif min_distance < WARNING_1_DISTANCE:
+        zone_alert = ALERT_WARNING_1
+    else:
+        zone_alert = ALERT_SAFE
+    
+    # Check for return path suppression (hysteresis logic)
+    suppressed = False
+    if is_returning and direction_tracker.should_suppress_alert(zone_alert):
+        suppressed = True
+    
+    # Check for stress override (disable shocks)
+    stress_override = False
+    if heart_rate is not None and heart_rate > STRESS_HEART_RATE_MAX:
+        stress_override = True
+    
+    # Determine final alert state and action based on direction
+    action_taken = 'none'
+    final_alert = zone_alert
+    
+    if suppressed:
+        # Cattle returning - suppress all alerts, use safe state
+        action_taken = 'suppressed'
+        # Still track the zone but don't trigger alerts
+    elif direction == DirectionTracker.DIRECTION_ENTERING:
+        # Cattle entering fence (from outside or moving toward safe)
+        # Don't trigger alerts - encourage entry
+        action_taken = 'suppressed'
+        suppressed = True
+        if not is_inside_any:
+            # Cattle is outside but entering - notify farmer but no alerts
+            print(f"  🐄 Cattle DETECTED OUTSIDE fence but ENTERING - no alerts")
+    elif direction == DirectionTracker.DIRECTION_EXITING or direction == DirectionTracker.DIRECTION_STATIONARY:
+        # Cattle exiting or stationary in a zone - apply graduated escalation
+        
+        # Enforce graduated escalation (never skip stages)
+        if previous_alert_state is None:
+            previous_alert_state = ALERT_SAFE
+        
+        zone_order = [ALERT_SAFE, ALERT_WARNING_1, ALERT_WARNING_2, ALERT_BREACH]
+        prev_idx = zone_order.index(previous_alert_state) if previous_alert_state in zone_order else 0
+        zone_idx = zone_order.index(zone_alert) if zone_alert in zone_order else 0
+        
+        # Can only escalate one step at a time
+        if zone_idx > prev_idx + 1:
+            # Trying to skip stages - enforce sequential escalation
+            if direction_tracker.can_escalate(ESCALATION_DELAY_SECONDS):
+                final_alert = zone_order[prev_idx + 1]
+                direction_tracker.start_escalation(prev_idx + 1)
+            else:
+                final_alert = previous_alert_state
+        else:
+            final_alert = zone_alert
+        
+        # Determine action
+        if final_alert == ALERT_WARNING_1:
+            action_taken = 'sound_low'
+        elif final_alert == ALERT_WARNING_2:
+            action_taken = 'sound_high'
+        elif final_alert == ALERT_BREACH:
+            if stress_override:
+                action_taken = 'shock_disabled'
+            else:
+                action_taken = 'shock'
+    
+    # Update direction tracker's last alert zone (for return suppression)
+    if not suppressed and final_alert != ALERT_SAFE:
+        direction_tracker.update_alert_zone(final_alert)
+    
+    # Reset if returned to safe
+    if zone_alert == ALERT_SAFE and is_inside_any:
+        direction_tracker.reset_for_safe_zone()
+    
+    return final_alert, action_taken, direction, suppressed, stress_override
 
 # Simulation parameters - Bounding box for cattle spawn area
 # SW: 36°44′56.617419″N, 3°19′40.933086″E → NE: 36°45′11.901893″N, 3°20′11.274755″E
@@ -236,6 +436,9 @@ class SimulatedCattle:
         self.battery = random.uniform(3.5, 4.2)
         self.battery_drain = random.uniform(0.001, 0.003)  # Per update
         
+        # Heart rate for health monitoring (used for stress detection)
+        self.heart_rate = random.randint(48, 84)  # Normal cattle range
+        
         # IMU orientation
         self.roll = random.uniform(-5, 5)
         self.pitch = random.uniform(-5, 5)
@@ -244,9 +447,16 @@ class SimulatedCattle:
         # Movement intensity (MOV) - simulated 0-255 value
         self.mov = 0
         
-        # Geofence alert state
+        # Geofence alert state (enhanced for direction-aware system)
         self.alert_state = ALERT_SAFE
         self.previous_alert_state = ALERT_SAFE
+        self.direction = 'stationary'  # 'entering', 'exiting', 'stationary', 'parallel'
+        self.alert_action_taken = 'none'  # 'sound_low', 'sound_high', 'shock', 'suppressed', 'none'
+        self.suppressed = False  # True if alerts are suppressed (returning to safe)
+        self.stress_override = False  # True if shock disabled due to stress
+        
+        # Direction tracker for movement analysis
+        self.direction_tracker = DirectionTracker(collar_id)
         
         # Activity classification (local)
         self.sliding_window = SlidingWindow(window_size_sec=60, min_samples=3)
@@ -336,14 +546,38 @@ class SimulatedCattle:
         # Battery drain
         self.battery = max(3.0, self.battery - self.battery_drain)
         
-        # Check geofence status and update alert state
-        self.previous_alert_state = self.alert_state
-        self.alert_state = check_geofence_status(self.lat, self.lon)
+        # Simulate heart rate based on activity (for stress detection)
+        if self.state == 'WALKING':
+            self.heart_rate = random.randint(70, 95)  # Elevated during movement
+        elif self.state == 'RESTING':
+            self.heart_rate = random.randint(45, 60)  # Lower during rest
+        else:
+            self.heart_rate = random.randint(50, 80)  # Normal range
         
-        # Log alert state changes
-        if self.alert_state != self.previous_alert_state:
-            print(f"  ⚠️ Cattle {self.collar_id} ALERT CHANGE: {self.previous_alert_state} → {self.alert_state}")
-            print(f"      Action: {get_alert_action(self.alert_state)}")
+        # Check geofence status using advanced direction-aware logic
+        self.previous_alert_state = self.alert_state
+        (self.alert_state, 
+         self.alert_action_taken, 
+         self.direction, 
+         self.suppressed, 
+         self.stress_override) = check_geofence_status_advanced(
+            self.lat, 
+            self.lon, 
+            self.direction_tracker,
+            heart_rate=self.heart_rate,
+            previous_alert_state=self.previous_alert_state
+        )
+        
+        # Log alert state changes with direction info
+        if self.alert_state != self.previous_alert_state or self.suppressed:
+            direction_icon = {'entering': '↙️', 'exiting': '↗️', 'stationary': '⏸️', 'parallel': '↔️'}.get(self.direction, '❓')
+            if self.suppressed:
+                print(f"  🔇 Cattle {self.collar_id} {direction_icon} ALERTS SUPPRESSED - returning to safe zone")
+            else:
+                print(f"  ⚠️ Cattle {self.collar_id} {direction_icon} ALERT: {self.previous_alert_state} → {self.alert_state}")
+                print(f"      Direction: {self.direction} | Action: {get_alert_action(self.alert_state, self.suppressed, self.stress_override)}")
+                if self.stress_override:
+                    print(f"      ❤️ Heart rate: {self.heart_rate} BPM (stressed - shock disabled)")
         
         # Add sample to sliding window for activity classification
         self.sliding_window.add_sample(
@@ -427,6 +661,46 @@ class SimulatedCattle:
         )
         
         return packet
+    
+    def get_backend_payload(self):
+        """
+        Generate backend payload directly with direction tracking data.
+        This bypasses the LoRa packet format to include all telemetry data.
+        """
+        now = datetime.now()
+        
+        # Environmental conditions
+        env_temp = 20.0 + random.uniform(-5, 10) + (5 if 10 <= now.hour <= 18 else -3)
+        env_humidity = 50 + random.uniform(-20, 30)
+        
+        # Body temperature varies slightly with activity
+        body_temp = self.base_body_temp
+        if self.state == 'WALKING':
+            body_temp += random.uniform(0.2, 0.5)
+        elif self.state == 'RESTING':
+            body_temp -= random.uniform(0.1, 0.3)
+        
+        collar_id = 9999 if self.is_new else self.collar_id
+        
+        return {
+            "collar_id": collar_id,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "latitude": self.lat,
+            "longitude": self.lon,
+            "battery_voltage": self.battery,
+            "body_temp": body_temp,
+            "env_temp": env_temp,
+            "env_humidity": env_humidity,
+            "roll": self.roll,
+            "pitch": self.pitch,
+            "yaw": self.yaw,
+            "heart_rate": self.heart_rate,
+            "spo2": random.randint(95, 100),
+            # Direction tracking data for graduated alert system
+            "alert_state": self.alert_state,
+            "direction": self.direction,
+            "alert_action_taken": self.alert_action_taken
+        }
 
 
 class HerdSimulator:
@@ -434,7 +708,8 @@ class HerdSimulator:
     
     def __init__(self, initial_cattle_ids=None, enable_local_classification=True):
         self.cattle = {}
-        self.next_new_cattle_check = random.randint(30, 120)  # Cycles until next new cattle
+        self.spawn_interval_cycles = 12  # Spawn new cattle every 12 cycles (60s at 5s interval)
+        self.next_cattle_id = 2001  # Starting ID for auto-spawned cattle
         self.update_count = 0
         self.enable_local_classification = enable_local_classification
         
@@ -461,26 +736,22 @@ class HerdSimulator:
                 self.cattle[collar_id] = SimulatedCattle(collar_id, lat, lon)
     
     def add_new_cattle(self):
-        """Simulate discovery of a new unassigned collar (ID=9999)."""
-        # Check if we already have a 9999 waiting for assignment
-        if 9999 in self.cattle:
-            print("  ℹ️ New collar 9999 already exists, skipping...")
-            return
+        """Simulate discovery of a new cattle with a unique collar ID."""
+        collar_id = self.next_cattle_id
+        self.next_cattle_id += 1
         
         lat = random.uniform(MIN_LAT, MAX_LAT)
         lon = random.uniform(MIN_LON, MAX_LON)
-        self.cattle[9999] = SimulatedCattle(9999, lat, lon, is_new=True)
-        print(f"\n  🆕 NEW COLLAR DISCOVERED! (ID=9999)")
+        self.cattle[collar_id] = SimulatedCattle(collar_id, lat, lon, is_new=False)
+        print(f"\n  🆕 NEW CATTLE SPAWNED! (ID={collar_id}) at ({lat:.6f}, {lon:.6f})")
     
     def update(self):
         """Update all cattle for one cycle."""
         self.update_count += 1
         
-        # Check for new cattle spawn
-        if self.update_count >= self.next_new_cattle_check:
-            if random.random() < 0.3:  # 30% chance when timer expires
-                self.add_new_cattle()
-            self.next_new_cattle_check = self.update_count + random.randint(30, 120)
+        # Spawn new cattle every 60 seconds (every 12 cycles at 5s interval)
+        if self.update_count % self.spawn_interval_cycles == 0:
+            self.add_new_cattle()
         
         # Update all cattle
         for cattle in self.cattle.values():
@@ -496,6 +767,13 @@ class HerdSimulator:
         for cattle in self.cattle.values():
             packets.append(cattle.generate_lora_packet())
         return packets
+    
+    def get_backend_payloads(self):
+        """Generate backend payloads for all cattle with direction tracking data."""
+        payloads = []
+        for cattle in self.cattle.values():
+            payloads.append(cattle.get_backend_payload())
+        return payloads
     
     def handle_collar_assignment(self, old_id, new_id):
         """Handle when a collar gets assigned a new ID."""
@@ -753,12 +1031,15 @@ def run_continuous_simulation(interval_seconds=5, initial_cattle=None):
             # Update all cattle positions and states
             herd.update()
             
-            # Generate and send packets for each cattle (staggered)
-            packets = herd.get_packets()
+            # Send telemetry data for each cattle (with direction tracking)
+            payloads = herd.get_backend_payloads()
             
-            for packet in packets:
-                parsed = parse_lora_packet(packet)
-                send_to_backend(parsed, herd)
+            for payload in payloads:
+                collar_id = payload.get('collar_id')
+                direction = payload.get('direction', 'stationary')
+                alert_state = payload.get('alert_state', 'safe')
+                print(f"\n[BeagleBone] 📡 Collar {collar_id}: Direction={direction}, Alert={alert_state}")
+                send_to_backend(payload, herd)
                 time.sleep(0.5)  # Small delay between transmissions
             
             # Periodic background sync of ACTIVITY DATA (every ~60s)

@@ -66,8 +66,8 @@ L.Icon.Default.mergeOptions({
 
 const API_URL = 'http://localhost:3001';
 
-// Create custom cow icons for different statuses (health + geofence alerts)
-const createCowIcon = (status, alertState = 'safe') => {
+// Create custom cow icons for different statuses (health + geofence alerts + direction)
+const createCowIcon = (status, alertState = 'safe', direction = 'stationary') => {
     const colors = {
         healthy: '#10B981',
         warning: '#F59E0B',
@@ -91,6 +91,19 @@ const createCowIcon = (status, alertState = 'safe') => {
         alertIcon = `<div class="alert-overlay shock">⚡</div>`;
     }
 
+    // Get direction arrow based on movement direction
+    let directionArrow = '';
+    if (direction === 'exiting') {
+        // Moving toward fence (dangerous) - red arrow pointing outward
+        directionArrow = `<div class="direction-arrow exiting">↗️</div>`;
+    } else if (direction === 'entering') {
+        // Moving toward safe zone - green arrow pointing inward
+        directionArrow = `<div class="direction-arrow entering">↙️</div>`;
+    } else if (direction === 'parallel') {
+        // Moving along fence - yellow arrow
+        directionArrow = `<div class="direction-arrow parallel">↔️</div>`;
+    }
+
     return new L.DivIcon({
         className: 'custom-cattle-marker',
         html: `
@@ -100,6 +113,7 @@ const createCowIcon = (status, alertState = 'safe') => {
           <circle cx="12" cy="12" r="6" fill="${colors[status]}"/>
         </svg>
         ${alertIcon}
+        ${directionArrow}
       </div>
     `,
         iconSize: [32, 32],
@@ -482,11 +496,18 @@ function LiveMap() {
                     {filteredCollars.map(collar => {
                         const status = getCollarStatus(collar);
                         const alertDisplay = getAlertStateDisplay(collar.alert_state);
+                        const direction = collar.direction || 'stationary';
+                        const directionDisplay = {
+                            'exiting': { icon: '↗️', text: 'Exiting', color: '#EF4444' },
+                            'entering': { icon: '↙️', text: 'Entering', color: '#10B981' },
+                            'parallel': { icon: '↔️', text: 'Parallel', color: '#F59E0B' },
+                            'stationary': { icon: '⏸️', text: 'Stationary', color: '#6B7280' }
+                        }[direction] || { icon: '❓', text: 'Unknown', color: '#6B7280' };
                         return (
                             <Marker
                                 key={collar.collar_id}
                                 position={[collar.latitude, collar.longitude]}
-                                icon={createCowIcon(status, collar.alert_state)}
+                                icon={createCowIcon(status, collar.alert_state, direction)}
                             >
                                 <Popup>
                                     <div className="popup-content">
@@ -501,6 +522,12 @@ function LiveMap() {
                                             <span className="popup-label">Geofence</span>
                                             <span className="popup-value" style={{ color: alertDisplay.color, fontWeight: collar.alert_state !== 'safe' ? 'bold' : 'normal' }}>
                                                 {alertDisplay.text}
+                                            </span>
+                                        </div>
+                                        <div className="popup-row">
+                                            <span className="popup-label">Direction</span>
+                                            <span className="popup-value" style={{ color: directionDisplay.color }}>
+                                                {directionDisplay.icon} {directionDisplay.text}
                                             </span>
                                         </div>
                                         <div className="popup-row">

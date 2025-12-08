@@ -142,3 +142,76 @@ graph TD
 - BeagleBone fetches fences from `GET /api/fences/sync` every 60 seconds
 - Fences are cached locally to reduce API calls
 - Only active fences (`is_active = TRUE`) are synced
+
+### Direction-Aware Alert Protocol
+The humane alert system uses direction detection to suppress unnecessary alerts:
+
+```mermaid
+graph TD
+    A[Position Update] --> B{Direction Analysis}
+    B --> C[Entering Fence]
+    B --> D[Exiting Fence]
+    B --> E[Stationary/Parallel]
+    C --> F[SUPPRESS Alerts - Encourage Entry]
+    D --> G{Apply Graduated Alerts}
+    E --> H{In Alert Zone?}
+    H -- Yes --> G
+    H -- No --> I[SAFE - No Action]
+    G --> J{Stress Check}
+    J -- HR > 100 --> K[Disable Shock]
+    J -- HR Normal --> L[Apply Action]
+```
+
+| Condition | Action |
+|-----------|--------|
+| Cattle exiting fence | Apply graduated alerts |
+| Cattle entering fence | Suppress alerts (encourage entry) |
+| Cattle returning to safe | Suppress alerts (hysteresis) |
+| Heart rate > 100 BPM | Disable shock (stress override) |
+| Alert escalation | 5s minimum delay between stages |
+
+### Automatic Cattle Spawning
+- Simulator spawns new cattle every 60 seconds (12 cycles at 5s interval)
+- Unique collar IDs starting from 2001, 2002, 2003, etc.
+- Cattle spawn within test bounding box (Reghaïa area)
+
+## Direction-Aware Alert System (Humane Protocol)
+
+### Movement Direction Detection
+The `DirectionTracker` class analyzes cattle position history to determine movement direction relative to fence boundaries:
+
+| Direction | Description | Alert Behavior |
+|-----------|-------------|----------------|
+| `entering` | Moving toward fence interior | Alerts SUPPRESSED |
+| `exiting` | Moving toward fence boundary | Alerts APPLIED |
+| `stationary` | No significant movement | Alerts applied based on zone |
+| `parallel` | Moving along boundary | Alerts applied based on zone |
+
+### Humane Alert Protocol Flow
+```mermaid
+graph TD
+    A[Position Update] --> B{Direction?}
+    B -- Entering --> C[Suppress Alerts]
+    B -- Exiting --> D{Stress Check}
+    D -- "HR > 100 BPM" --> E[Disable Shock]
+    D -- "HR Normal" --> F{Escalation Timing}
+    F -- "< 5s since last level" --> G[Hold Current Level]
+    F -- "> 5s" --> H[Escalate One Level]
+    H --> I{Current Zone}
+    I -- "10-15m" --> J[warning_1: Sound]
+    I -- "5-10m" --> K[warning_2: Intense Sound]
+    I -- "<5m or outside" --> L[breach: Shock]
+```
+
+### Escalation Timing Constants
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `ESCALATION_DELAY_SECONDS` | 5.0 | Min time before escalating alert level |
+| `STRESS_HEART_RATE_MAX` | 100 | BPM above which shocks are disabled |
+| `GPS_LOW_ACCURACY_BUFFER` | 5 | Extra buffer when GPS accuracy is poor |
+
+### Multi-Fence Logic
+- Cattle is SAFE if inside ANY fence
+- Cattle is BREACH only if outside ALL fences
+- Min distance to any edge determines warning level
+- Overlapping fences provide larger safe zones

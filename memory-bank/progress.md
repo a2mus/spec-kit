@@ -1,5 +1,27 @@
 # Progress Log
 
+## 2025-12-08 - Direction-Aware Humane Alert System
+- **New direction tracking** in `beaglebone_vm.py`:
+  - Added `DirectionTracker` class for movement analysis
+  - Detects `entering`, `exiting`, `stationary`, `parallel` movement
+  - Alerts suppressed when cattle is returning to safe zone
+- **Humane alert protocol**:
+  - Graduated escalation (warning_1 → warning_2 → breach, never skip stages)
+  - `ESCALATION_DELAY_SECONDS = 5.0` minimum time before escalating
+  - Shock disabled when cattle stressed (`heart_rate > 100 BPM`)
+- **Multi-fence geofencing fix**: 
+  - Changed logic: BREACH only if outside ALL fences (not any)
+  - Uses min distance across all fences for graduated alerts
+  - Added error handling for invalid fence geo_json
+- **Frontend fence toggle**: 
+  - Added enable/disable button with Power icon in FencingZones
+  - Inactive fences shown as gray dashed lines on map
+  - Badge shows Active/Inactive status
+- **New payload fields**: `direction`, `alert_action_taken` sent to backend
+- **SimulatedCattle enhancements**:
+  - Heart rate simulation based on activity state
+  - `get_backend_payload()` method for full telemetry with direction data
+
 ## 2025-12-07 - Virtual Fencing & Graduated Alert System
 - Implemented geofence logic in BeagleBone simulator (`beaglebone_vm.py`)
 - Added geofence utilities: `haversine_distance`, `point_in_polygon`, `distance_to_polygon_edge`

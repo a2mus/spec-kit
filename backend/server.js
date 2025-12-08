@@ -407,19 +407,22 @@ app.post('/api/collars/data', async (req, res) => {
       }
     }
 
-    // Update the in-memory store for real-time updates
+    // Update the in-memory store for real-time updates (includes direction tracking)
     latestCollarData.set(data.collar_id, {
       ...data,
       activity: null, // Activity will be computed server-side
-      alert_state: data.alert_state || 'safe'
+      alert_state: data.alert_state || 'safe',
+      direction: data.direction || 'stationary',
+      alert_action_taken: data.alert_action_taken || 'none'
     });
 
-    // Insert into location history
+    // Insert into location history with direction tracking
     const historyQuery = `
       INSERT INTO "LocationHistory" 
       (timestamp, collar_id, latitude, longitude, battery_voltage, body_temp, 
-       env_temp, env_humidity, roll, pitch, yaw, activity, heart_rate, spo2)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       env_temp, env_humidity, roll, pitch, yaw, movement_intensity, heart_rate, spo2,
+       direction, alert_state, alert_action_taken)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
     `;
     await pool.query(historyQuery, [
       data.timestamp,
@@ -433,9 +436,12 @@ app.post('/api/collars/data', async (req, res) => {
       data.roll,
       data.pitch,
       data.yaw,
-      null, // Activity computed server-side, not from collar
+      data.movement_intensity || null, // MOV value from collar
       data.heart_rate || null,
       data.spo2 || null,
+      data.direction || null,         // Direction: 'entering', 'exiting', 'stationary', 'parallel'
+      data.alert_state || 'safe',     // Alert state: 'safe', 'warning_1', 'warning_2', 'breach'
+      data.alert_action_taken || null // Action: 'sound_low', 'sound_high', 'shock', 'suppressed', 'none'
     ]);
 
     // Response includes pending config if any
@@ -498,7 +504,7 @@ app.get('/api/collars/latest', async (req, res) => {
     const collarMap = new Map();
     collarResult.rows.forEach(row => collarMap.set(row.collar_id, row));
 
-    // Enrich data with cattle info and alert_state
+    // Enrich data with cattle info, alert_state, and direction
     const enrichedData = dataArray.map(data => {
       const collarInfo = collarMap.get(data.collar_id);
       return {
@@ -506,7 +512,9 @@ app.get('/api/collars/latest', async (req, res) => {
         cattle_name: collarInfo?.cattle_name || null,
         tag_number: collarInfo?.tag_number || null,
         collar_status: collarInfo?.status || 'unknown',
-        alert_state: data.alert_state || collarInfo?.alert_state || 'safe'
+        alert_state: data.alert_state || collarInfo?.alert_state || 'safe',
+        direction: data.direction || 'stationary',
+        alert_action_taken: data.alert_action_taken || 'none'
       };
     });
 

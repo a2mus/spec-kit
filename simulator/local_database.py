@@ -75,6 +75,38 @@ class LocalDatabase:
     
     CREATE INDEX IF NOT EXISTS idx_alerts_unack 
         ON alerts(acknowledged) WHERE acknowledged = 0;
+    
+    -- Position history for direction tracking (geofence)
+    CREATE TABLE IF NOT EXISTS position_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT NOT NULL,
+        collar_id INTEGER NOT NULL,
+        latitude REAL,
+        longitude REAL,
+        distance_to_fence REAL,
+        alert_state TEXT,
+        direction TEXT,
+        alert_action_taken TEXT,
+        synced INTEGER DEFAULT 0
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_position_collar_time 
+        ON position_history(collar_id, timestamp DESC);
+    CREATE INDEX IF NOT EXISTS idx_position_unsynced 
+        ON position_history(synced) WHERE synced = 0;
+    
+    -- Fence cache for offline operation
+    CREATE TABLE IF NOT EXISTS fence_cache (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fence_id INTEGER UNIQUE NOT NULL,
+        fence_name TEXT,
+        polygon_json TEXT NOT NULL,
+        cached_at TEXT NOT NULL,
+        is_active INTEGER DEFAULT 1
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_fence_active 
+        ON fence_cache(is_active) WHERE is_active = 1;
     """
     
     def __init__(self, db_path: str = "activity_data.db"):
@@ -293,3 +325,126 @@ class LocalDatabase:
             stats['db_size_bytes'] = os.path.getsize(self.db_path) if os.path.exists(self.db_path) else 0
             
             return stats
+    
+    # =========================================
+    # Position History Methods (Geofence)
+    # =========================================
+    
+    def store_position(self, data: dict) -> int:
+        """
+        Store a position record for direction tracking.
+        
+        Args:
+            data: Dictionary with position data
+            
+        Returns:
+            ID of inserted record
+        """
+        with self._get_connection() as conn:
+            cursor = conn.execute("""
+                INSERT INTO position_history (
+                    timestamp, collar_id, latitude, longitude,
+                    distance_to_fence, alert_state, direction, alert_action_taken
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                data.get('timestamp'),
+                data.get('collar_id'),
+                data.get('latitude'),
+                data.get('longitude'),
+                data.get('distance_to_fence'),
+                data.get('alert_state'),
+                data.get('direction'),
+                data.get('alert_action_taken'),
+            ))
+            return cursor.lastrowid
+    
+    def get_recent_positions(self, collar_id: int, limit: int = 10) -> List[Dict]:
+        """Get recent positions for a collar (for direction calculation)."""
+        with self._get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT * FROM position_history 
+                WHERE collar_id = ? 
+                ORDER BY timestamp DESC 
+                LIMIT ?
+            """, (collar_id, limit))
+            return [dict(row) for row in cursor.fetchall()]
+    
+    def get_unsynced_positions(self, limit: int = 100) -> List[Dict]:
+        """Get position records that haven't been synced to backend."""
+        with self._get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT * FROM position_history 
+                WHERE synced = 0 
+                ORDER BY timestamp ASC 
+                LIMIT ?
+            """, (limit,))
+            return [dict(row) for row in cursor.fetchall()]
+    
+    def mark_positions_synced(self, position_ids: List[int]) -> None:
+        """Mark position records as synced."""
+        if not position_ids:
+            return
+        
+        with self._get_connection() as conn:
+            placeholders = ','.join('?' * len(position_ids))
+            conn.execute(f"""
+                UPDATE position_history SET synced = 1 WHERE id IN ({placeholders})
+            """, position_ids)
+    
+    # =========================================
+    # Fence Cache Methods (Offline Operation)
+    # =========================================
+    
+    def cache_fences(self, fences: List[Dict]) -> int:
+        """
+        Cache fence data for offline operation.
+        
+        Args:
+            fences: List of fence dicts with id, name, polygon
+            
+        Returns:
+            Number of fences cached
+        """
+        import json
+        cached_at = datetime.now().isoformat()
+        
+        with self._get_connection() as conn:
+            count = 0
+            for fence in fences:
+                conn.execute("""
+                    INSERT OR REPLACE INTO fence_cache 
+                    (fence_id, fence_name, polygon_json, cached_at, is_active)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (
+                    fence.get('id'),
+                    fence.get('name'),
+                    json.dumps(fence.get('polygon', [])),
+                    cached_at,
+                    1
+                ))
+                count += 1
+            return count
+    
+    def get_cached_fences(self) -> List[Dict]:
+        """Get all cached active fences."""
+        import json
+        
+        with self._get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT * FROM fence_cache WHERE is_active = 1
+            """)
+            fences = []
+            for row in cursor.fetchall():
+                fences.append({
+                    'id': row['fence_id'],
+                    'name': row['fence_name'],
+                    'polygon': json.loads(row['polygon_json']),
+                    'cached_at': row['cached_at']
+                })
+            return fences
+    
+    def clear_fence_cache(self) -> None:
+        """Clear all cached fences."""
+        with self._get_connection() as conn:
+            conn.execute("DELETE FROM fence_cache")
+

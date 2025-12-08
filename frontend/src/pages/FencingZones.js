@@ -10,7 +10,8 @@ import {
     Edit,
     MapPin,
     Clock,
-    AlertTriangle
+    AlertTriangle,
+    Power
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
@@ -108,7 +109,8 @@ function FencingZones() {
                 id: f.id,
                 name: f.name || `Zone ${f.id}`,
                 positions: f.geo_json.coordinates[0].map(coord => [coord[1], coord[0]]),
-                createdAt: f.created_at
+                createdAt: f.created_at,
+                isActive: f.is_active
             }));
 
             setFences(formattedFences);
@@ -123,6 +125,19 @@ function FencingZones() {
     useEffect(() => {
         fetchData();
     }, []);
+
+    const handleToggleFence = async (id, name, currentStatus) => {
+        const action = currentStatus ? 'disable' : 'enable';
+        if (!window.confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} fence "${name}"?`)) return;
+
+        try {
+            await axios.patch(`${API_URL}/api/fences/${id}/toggle`);
+            fetchData();
+        } catch (error) {
+            console.error(`Error toggling fence ${id}:`, error);
+            alert(`Failed to ${action} fence. Please try again.`);
+        }
+    };
 
     const handleCreate = async (e) => {
         const { layer } = e;
@@ -191,13 +206,20 @@ function FencingZones() {
             {/* Zone Cards Grid */}
             <div className="grid grid-cols-3">
                 {fences.map(fence => (
-                    <div key={fence.id} className="zone-card">
+                    <div key={fence.id} className={`zone-card ${!fence.isActive ? 'zone-card-inactive' : ''}`}>
                         <div className="zone-header">
                             <div className="zone-title">
-                                <div className="zone-color" style={{ background: '#3B82F6' }}></div>
+                                <div className="zone-color" style={{ background: fence.isActive ? '#3B82F6' : '#6B7280' }}></div>
                                 {fence.name}
                             </div>
                             <div className="zone-actions">
+                                <button
+                                    className={`btn btn-icon ${fence.isActive ? 'btn-warning' : 'btn-success'}`}
+                                    onClick={() => handleToggleFence(fence.id, fence.name, fence.isActive)}
+                                    title={fence.isActive ? 'Disable fence' : 'Enable fence'}
+                                >
+                                    <Power size={16} />
+                                </button>
                                 <button
                                     className="btn btn-icon btn-secondary"
                                     onClick={() => handleDeleteFence(fence.id, fence.name)}
@@ -218,7 +240,9 @@ function FencingZones() {
                             </div>
                         </div>
                         <div className="zone-status">
-                            <span className="badge badge-success">Active</span>
+                            <span className={`badge ${fence.isActive ? 'badge-success' : 'badge-secondary'}`}>
+                                {fence.isActive ? 'Active' : 'Inactive'}
+                            </span>
                         </div>
                     </div>
                 ))}
@@ -252,10 +276,11 @@ function FencingZones() {
                                 key={fence.id}
                                 positions={fence.positions}
                                 pathOptions={{
-                                    color: '#3B82F6',
-                                    fillColor: '#3B82F6',
-                                    fillOpacity: 0.2,
-                                    weight: 2
+                                    color: fence.isActive ? '#3B82F6' : '#6B7280',
+                                    fillColor: fence.isActive ? '#3B82F6' : '#6B7280',
+                                    fillOpacity: fence.isActive ? 0.2 : 0.1,
+                                    weight: fence.isActive ? 2 : 1,
+                                    dashArray: fence.isActive ? null : '5, 5'
                                 }}
                                 eventHandlers={{
                                     click: () => handleDeleteFence(fence.id, fence.name)

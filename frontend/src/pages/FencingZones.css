@@ -59,6 +59,26 @@
     gap: var(--space-sm);
 }
 
+/* Inactive Zone Card */
+.zone-card-inactive {
+    opacity: 0.7;
+    border-color: var(--border-light);
+}
+
+.zone-card-inactive:hover {
+    opacity: 0.85;
+}
+
+/* Warning Button for Toggle */
+.btn-warning {
+    background: #F59E0B;
+    color: white;
+}
+
+.btn-warning:hover {
+    background: #D97706;
+}
+
 /* Zone Map */
 .zone-map {
     height: 400px;

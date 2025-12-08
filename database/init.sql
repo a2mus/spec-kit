@@ -67,7 +67,11 @@ CREATE TABLE "LocationHistory" (
     "yaw" REAL,
     "movement_intensity" SMALLINT,   -- MOV value (0-255) from collar, NOT activity classification
     "heart_rate" INTEGER,            -- BPM from heart sensor
-    "spo2" REAL                      -- Blood oxygen saturation %
+    "spo2" REAL,                     -- Blood oxygen saturation %
+    -- Geofence direction and alert tracking
+    "direction" VARCHAR(20),         -- 'entering', 'exiting', 'stationary', 'parallel'
+    "alert_state" VARCHAR(20),       -- 'safe', 'warning_1', 'warning_2', 'breach'
+    "alert_action_taken" VARCHAR(50) -- 'sound_low', 'sound_high', 'shock', 'suppressed', 'none'
 );
 
 -- Convert to TimescaleDB hypertable for efficient time-series queries
