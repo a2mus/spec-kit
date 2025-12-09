@@ -28,7 +28,7 @@ Implement a humane, graduated alert system for cattle virtual fencing with direc
 
 ### 4. Frontend Updates
 - [x] Update `LiveMap.js` markers to show direction arrows
-- [ ] Update `GeofenceAlertNotification.js` for outside detection
+- [x] Update `GeofenceAlertNotification.js` for outside detection
 - [/] Update `Dashboard.js` activity feed for direction events
 - [x] Add visual distinction for entering vs exiting cattle
 

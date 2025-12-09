@@ -1,10 +1,26 @@
 # Active Context
 
 ## Current Focus
-- Direction-aware humane alert system with return path suppression
-- Automatic cattle spawning every 60 seconds in simulator
-- Graduated escalation with stress-based shock prevention
-- Multi-fence geofencing with proper inside/outside logic
+- Graduated Alert System verification and testing
+- GeofenceAlertNotification component enhancement for outside detection
+- Dashboard activity feed updates for direction events
+- Docker rebuild to apply recent changes from walkthrough session
+
+## Recent Changes (2025-12-09 - Walkthrough Session)
+### Geofencing Logic Improvements (beaglebone_vm.py)
+- "Max Safety" nested fence logic - uses max distance across containing fences
+- Intersection handling: No alerts inside any valid fence
+- Entering cattle: Silent farmer notification instead of alerts
+- New functions: `calculate_polygon_area()`, `point_in_any_fence()`, `get_largest_containing_fence()`
+
+### UI Improvements
+- Health Monitor: Decimal formatting, Locate buttons, filter bar
+- Live Map: Satellite imagery toggle (Esri World Imagery), URL param zoom (`?collar=123`)
+- Navigation: "Locate on Map" buttons in CattleRoster and CollarManagement
+
+### Verified
+- Python syntax check passed
+- Backend fence filtering (only active fences in sync)
 
 ## Recent Changes (2025-12-08)
 ### Direction-Aware Alerts (beaglebone_vm.py)
@@ -44,7 +60,10 @@
 - `frontend/src/pages/LiveMap.js` - Direction-aware visualization
 
 ## Next Steps
-- Verify direction suppression logic in simulator
-- Add breach history logging with direction context
-- Test stress-based shock prevention with elevated heart rate simulation with direction data
-- Consider implementing return path prediction
+1. **Docker rebuild**: Run `docker-compose down -v && docker-compose up --build` to apply all changes
+2. **Verify UI features in browser**: Test Health Monitor filters, Locate buttons, satellite toggle
+3. **Observe simulator logs**: Watch for nested fence handling and direction detection
+4. **Complete remaining frontend tasks**:
+   - Update `GeofenceAlertNotification.js` for outside detection
+   - Finish `Dashboard.js` activity feed direction events
+5. **Verification testing**: Test graduated escalation, direction detection, return path suppression, offline caching, health stress override

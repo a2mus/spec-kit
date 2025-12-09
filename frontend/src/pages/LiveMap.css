@@ -430,17 +430,41 @@
     animation: slide-in 0.3s ease-out;
 }
 
-.geofence-alert-item.warning_1 {
+.geofence-alert-item.warning_1,
+.geofence-alert-item.warning {
     border-left-color: #F59E0B;
+    background: linear-gradient(to right, rgba(245, 158, 11, 0.08), var(--bg-card));
 }
 
 .geofence-alert-item.warning_2 {
     border-left-color: #F97316;
+    background: linear-gradient(to right, rgba(249, 115, 22, 0.08), var(--bg-card));
 }
 
-.geofence-alert-item.breach {
+.geofence-alert-item.breach,
+.geofence-alert-item.critical {
     border-left-color: #EF4444;
     background: linear-gradient(to right, rgba(239, 68, 68, 0.1), var(--bg-card));
+}
+
+.geofence-alert-item.success {
+    border-left-color: #10B981;
+    background: linear-gradient(to right, rgba(16, 185, 129, 0.08), var(--bg-card));
+}
+
+.geofence-alert-item.outside {
+    border-left-color: #8B5CF6;
+    background: linear-gradient(to right, rgba(139, 92, 246, 0.12), var(--bg-card));
+    animation: slide-in 0.3s ease-out, pulse-outside 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-outside {
+    0%, 100% {
+        box-shadow: 0 4px 6px -1px rgba(139, 92, 246, 0.1), 0 2px 4px -1px rgba(139, 92, 246, 0.06);
+    }
+    50% {
+        box-shadow: 0 10px 15px -3px rgba(139, 92, 246, 0.2), 0 4px 6px -2px rgba(139, 92, 246, 0.1);
+    }
 }
 
 .geofence-alert-icon {

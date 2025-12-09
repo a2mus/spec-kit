@@ -9,27 +9,44 @@ import React, { useState, useEffect, useCallback } from 'react';
 function GeofenceAlertNotification({ collars, previousCollarsRef }) {
     const [alerts, setAlerts] = useState([]);
 
-    const getAlertInfo = (alertState, direction) => {
-        const directionText = direction === 'exiting' ? '(Exiting)' :
-            direction === 'entering' ? '(Entering)' : '';
+    const getAlertInfo = (alertState, direction, actionTaken) => {
+        // Direction-aware text for approaching boundary scenarios
+        const getApproachText = () => {
+            if (direction === 'exiting') return 'Cattle approaching boundary';
+            if (direction === 'entering') return 'Cattle moving to safe zone';
+            if (direction === 'stationary') return 'Cattle stationary near boundary';
+            return '';
+        };
+
+        // Check for outside fence detection (special case)
+        if (actionTaken === 'notification_farmer') {
+            return {
+                icon: '🚨',
+                title: 'CATTLE OUTSIDE FENCE',
+                message: 'Cattle detected outside fence boundary but entering - farmer notified silently.',
+                severity: 'outside'
+            };
+        }
 
         const info = {
             'warning_1': {
                 icon: '🔊',
-                title: 'Approaching Boundary',
-                message: `Collar has entered the warning zone (10-15m). ${directionText}`,
+                title: direction === 'exiting' ? 'Approaching Boundary' : 'Near Boundary',
+                message: `${getApproachText()} - entered warning zone (10-15m from edge).`,
                 severity: 'warning'
             },
             'warning_2': {
                 icon: '🔊🔊',
-                title: 'Near Boundary',
-                message: `Collar is very close to fence boundary (5-10m). ${directionText}`,
+                title: direction === 'exiting' ? 'Close to Boundary' : 'Near Boundary',
+                message: `${getApproachText()} - very close to fence boundary (5-10m).`,
                 severity: 'warning'
             },
             'breach': {
                 icon: '⚡',
                 title: 'BOUNDARY BREACH',
-                message: 'Electric shock signal activated - collar has breached the fence!',
+                message: actionTaken === 'shock_disabled'
+                    ? 'Cattle breached boundary - SHOCK DISABLED (stress detected)'
+                    : 'Electric shock signal activated - cattle has breached the fence!',
                 severity: 'critical'
             }
         };
@@ -50,11 +67,28 @@ function GeofenceAlertNotification({ collars, previousCollarsRef }) {
                 c => c.collar_id === collar.collar_id
             );
 
-            // Check if alert state changed
-            if (prevCollar && collar.alert_state !== prevCollar.alert_state) {
+            // Check if alert state changed OR if outside fence detected (notification_farmer)
+            const stateChanged = prevCollar && collar.alert_state !== prevCollar.alert_state;
+            const outsideDetected = collar.alert_action_taken === 'notification_farmer' &&
+                (!prevCollar || prevCollar.alert_action_taken !== 'notification_farmer');
 
-                // Case 1: Returned to safe zone (Previous was not safe, current IS safe)
-                if (collar.alert_state === 'safe' && prevCollar.alert_state !== 'safe') {
+            if (stateChanged || outsideDetected) {
+                // Case 1: Outside fence detected (cattle entering from outside)
+                if (outsideDetected) {
+                    const alertInfo = getAlertInfo(collar.alert_state, collar.direction, collar.alert_action_taken);
+                    if (alertInfo) {
+                        newAlerts.push({
+                            id: `${collar.collar_id}-${Date.now()}-outside`,
+                            collar_id: collar.collar_id,
+                            cattle_name: collar.cattle_name,
+                            alert_state: 'outside',
+                            ...alertInfo,
+                            timestamp: new Date()
+                        });
+                    }
+                }
+                // Case 2: Returned to safe zone (Previous was not safe, current IS safe)
+                else if (collar.alert_state === 'safe' && prevCollar.alert_state !== 'safe') {
                     newAlerts.push({
                         id: `${collar.collar_id}-${Date.now()}-safe`,
                         collar_id: collar.collar_id,
@@ -63,13 +97,13 @@ function GeofenceAlertNotification({ collars, previousCollarsRef }) {
                         icon: '✅',
                         title: 'Returned to Safe Zone',
                         message: 'Cattle has returned to the safe zone.',
-                        severity: 'success', // You might need to handle this css class
+                        severity: 'success',
                         timestamp: new Date()
                     });
                 }
-                // Case 2: Entered an alert state (Current is NOT safe)
+                // Case 3: Entered an alert state (Current is NOT safe)
                 else if (collar.alert_state !== 'safe') {
-                    const alertInfo = getAlertInfo(collar.alert_state, collar.direction);
+                    const alertInfo = getAlertInfo(collar.alert_state, collar.direction, collar.alert_action_taken);
                     if (alertInfo) {
                         newAlerts.push({
                             id: `${collar.collar_id}-${Date.now()}`,
@@ -113,7 +147,7 @@ function GeofenceAlertNotification({ collars, previousCollarsRef }) {
             {alerts.map(alert => (
                 <div
                     key={alert.id}
-                    className={`geofence-alert-item ${alert.alert_state}`}
+                    className={`geofence-alert-item ${alert.severity}`}
                 >
                     <div className="geofence-alert-icon">{alert.icon}</div>
                     <div className="geofence-alert-content">

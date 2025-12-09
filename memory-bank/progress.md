@@ -1,5 +1,24 @@
 # Progress Log
 
+## 2025-12-09 - Virtual Fencing Feature Improvements (Walkthrough Session)
+- **Geofencing Logic Enhancements** (`beaglebone_vm.py`):
+  - Implemented "Max Safety" nested fence logic - uses maximum distance to edge across all containing fences
+  - Intersection handling: No alerts if cattle is inside any valid fence, even near edge of another
+  - Entering cattle detection: Silent farmer notification instead of alerts
+  - New helper functions: `calculate_polygon_area()` (Shoelace formula), `point_in_any_fence()`, `get_largest_containing_fence()`
+- **Health Monitor UI** (`HealthMonitor.js`):
+  - Decimal formatting (2 places) for body temp & battery
+  - Added "Locate" buttons on vitals cards and alert table
+  - Added filter bar (status dropdown + search input)
+- **Live Map** (`LiveMap.js`):
+  - Satellite imagery layer toggle (Esri World Imagery)
+  - URL parameter handling (`?collar=123`) for zoom-to-collar
+- **Navigation Buttons**:
+  - `CattleRoster.js`: "Locate on Map" for cattle with collars
+  - `CollarManagement.js`: "Locate on Map" for active collars
+- **Disabled Fences**: Backend `/api/fences/sync` verified to only return `is_active = TRUE` fences
+- **Verification**: Python syntax check passed (`py_compile`), backend logic reviewed
+
 ## 2025-12-08 - Direction-Aware Humane Alert System
 - **New direction tracking** in `beaglebone_vm.py`:
   - Added `DirectionTracker` class for movement analysis
