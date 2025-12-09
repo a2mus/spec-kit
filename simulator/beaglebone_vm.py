@@ -132,6 +132,87 @@ def distance_to_polygon_edge(lat, lon, polygon):
     
     return min_distance
 
+def calculate_polygon_area(polygon):
+    """
+    Calculate the area of a polygon using the Shoelace formula.
+    Returns area in square degrees (for comparison purposes only).
+    Used to determine which fence is larger when nested.
+    """
+    if len(polygon) < 3:
+        return 0
+    
+    n = len(polygon)
+    area = 0
+    
+    for i in range(n):
+        j = (i + 1) % n
+        area += polygon[i]['lat'] * polygon[j]['lon']
+        area -= polygon[j]['lat'] * polygon[i]['lon']
+    
+    return abs(area) / 2
+
+def point_in_any_fence(lat, lon, fences):
+    """
+    Check if a point is inside any of the given fences.
+    Returns list of fence IDs that contain the point.
+    """
+    containing_fences = []
+    for fence in fences:
+        polygon = fence.get('polygon', [])
+        if polygon and len(polygon) >= 3:
+            if point_in_polygon(lat, lon, polygon):
+                containing_fences.append(fence)
+    return containing_fences
+
+def get_largest_containing_fence(lat, lon, fences):
+    """
+    Get the largest fence (by area) that contains the given point.
+    Used for nested fence handling - larger fence takes precedence.
+    Returns the fence dict or None if point is outside all fences.
+    """
+    containing_fences = point_in_any_fence(lat, lon, fences)
+    
+    if not containing_fences:
+        return None
+    
+    # Find largest by area
+    largest_fence = None
+    largest_area = -1
+    
+    for fence in containing_fences:
+        polygon = fence.get('polygon', [])
+        area = calculate_polygon_area(polygon)
+        if area > largest_area:
+            largest_area = area
+            largest_fence = fence
+    
+    return largest_fence
+
+def is_moving_toward_another_fence(lat, lon, direction, current_fence, all_fences):
+    """
+    Check if cattle is in an intersection zone and moving toward another valid fence.
+    Used to suppress alerts when exiting toward an overlapping fence.
+    
+    Returns True if cattle should NOT receive alerts (moving toward another fence).
+    """
+    if direction != 'exiting':
+        return False
+    
+    # Check if cattle is inside any other fence
+    for fence in all_fences:
+        if fence.get('id') == current_fence.get('id'):
+            continue
+        
+        polygon = fence.get('polygon', [])
+        if polygon and len(polygon) >= 3:
+            if point_in_polygon(lat, lon, polygon):
+                # Cattle is in intersection of two fences
+                # Don't alert if they're inside another valid fence
+                return True
+    
+    return False
+
+
 def fetch_active_fences():
     """
     Fetch active fences from the backend API.
@@ -232,7 +313,7 @@ def check_geofence_status(lat, lon):
     # Safe - inside fence and far from all edges
     return ALERT_SAFE
 
-def get_alert_action(alert_state, suppressed=False, stress_override=False):
+def get_alert_action(alert_state, suppressed=False, stress_override=False, action_taken_override=None):
     """
     Get the collar action based on alert state.
     
@@ -240,9 +321,13 @@ def get_alert_action(alert_state, suppressed=False, stress_override=False):
         alert_state: Current alert state
         suppressed: If True, alerts are suppressed (cattle returning)
         stress_override: If True, shocks are disabled due to stress
+        action_taken_override: Optional string to override action description
         
     Returns description of what the collar should do.
     """
+    if action_taken_override == 'notification_farmer':
+        return "📱 SILENT NOTIFICATION - Farmer alerted (Entering Cattle)"
+
     if suppressed:
         return "🔇 Alerts SUPPRESSED - cattle returning to safe zone"
     
@@ -255,7 +340,11 @@ def get_alert_action(alert_state, suppressed=False, stress_override=False):
         ALERT_WARNING_2: "🔊🔊 Sound Alert - High frequency rapid beep",
         ALERT_BREACH: "⚡ ELECTRIC SHOCK - Boundary breach!"
     }
+    if action_taken_override:
+        return action_taken_override
+        
     return actions.get(alert_state, "Unknown state")
+
 
 
 def check_geofence_status_advanced(lat, lon, direction_tracker, heart_rate=None, previous_alert_state=None):
@@ -286,10 +375,15 @@ def check_geofence_status_advanced(lat, lon, direction_tracker, heart_rate=None,
         return ALERT_SAFE, 'none', 'stationary', False, False
     
     # Calculate position data
-    is_inside_any = False
-    min_distance = float('inf')
-    valid_fence_count = 0
     
+    # 1. NESTED & INTERSECTING FENCE HANDLING
+    # Strategy: "Max Safety"
+    # - If inside multiple fences, use the one providing the best safety margin (furthest from edge)
+    # - This handles NESTED fences (ignores inner boundaries)
+    # - This handles INTERSECTIONS (ignores boundary if covered by another fence)
+    
+    inside_fences = []
+    # Identify all fences containing the point
     for fence in fences:
         try:
             polygon = fence.get('polygon', [])
@@ -297,18 +391,29 @@ def check_geofence_status_advanced(lat, lon, direction_tracker, heart_rate=None,
                 continue
             
             valid_fence_count += 1
-            is_inside = point_in_polygon(lat, lon, polygon)
-            if is_inside:
-                is_inside_any = True
-            
-            distance = distance_to_polygon_edge(lat, lon, polygon)
-            min_distance = min(min_distance, distance)
-            
-        except Exception as e:
+            if point_in_polygon(lat, lon, polygon):
+                inside_fences.append(fence)
+        except Exception:
             continue
+            
+    is_inside_any = len(inside_fences) > 0
     
-    if valid_fence_count == 0:
-        return ALERT_SAFE, 'none', 'stationary', False, False
+    if is_inside_any:
+        # INSIDE: Find the "safest" distance (max distance to any edge of the containing fences)
+        # This effectively prioritizes the largest/most secure fence
+        min_distance = -1.0
+        for fence in inside_fences:
+             d = distance_to_polygon_edge(lat, lon, fence['polygon'])
+             # We want the MAX distance because that means we are DEEPER inside a valid zone
+             if d > min_distance:
+                 min_distance = d
+    else:
+        # OUTSIDE: Find the nearest fence to return to (min distance)
+        min_distance = float('inf')
+        for fence in fences:
+            d = distance_to_polygon_edge(lat, lon, fence.get('polygon', []))
+            if d < min_distance:
+                min_distance = d
     
     # Add position to direction tracker
     direction_tracker.add_position(lat, lon, min_distance)
@@ -349,12 +454,13 @@ def check_geofence_status_advanced(lat, lon, direction_tracker, heart_rate=None,
         # Still track the zone but don't trigger alerts
     elif direction == DirectionTracker.DIRECTION_ENTERING:
         # Cattle entering fence (from outside or moving toward safe)
-        # Don't trigger alerts - encourage entry
         action_taken = 'suppressed'
         suppressed = True
         if not is_inside_any:
-            # Cattle is outside but entering - notify farmer but no alerts
-            print(f"  🐄 Cattle DETECTED OUTSIDE fence but ENTERING - no alerts")
+            # Cattle is outside but entering - SILENT ALERT for farmer
+            action_taken = 'notification_farmer'
+            print(f"  🐄 Cattle DETECTED OUTSIDE fence but ENTERING - triggering silent farmer notification")
+
     elif direction == DirectionTracker.DIRECTION_EXITING or direction == DirectionTracker.DIRECTION_STATIONARY:
         # Cattle exiting or stationary in a zone - apply graduated escalation
         
@@ -575,7 +681,7 @@ class SimulatedCattle:
                 print(f"  🔇 Cattle {self.collar_id} {direction_icon} ALERTS SUPPRESSED - returning to safe zone")
             else:
                 print(f"  ⚠️ Cattle {self.collar_id} {direction_icon} ALERT: {self.previous_alert_state} → {self.alert_state}")
-                print(f"      Direction: {self.direction} | Action: {get_alert_action(self.alert_state, self.suppressed, self.stress_override)}")
+                print(f"      Direction: {self.direction} | Action: {get_alert_action(self.alert_state, self.suppressed, self.stress_override, self.alert_action_taken)}")
                 if self.stress_override:
                     print(f"      ❤️ Heart rate: {self.heart_rate} BPM (stressed - shock disabled)")
         

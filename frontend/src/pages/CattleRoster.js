@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
     Plus,
@@ -6,13 +7,15 @@ import {
     Trash2,
     Radio,
     Search,
-    X
+    X,
+    MapPin
 } from 'lucide-react';
 import './CattleRoster.css';
 
 const API_URL = 'http://localhost:3001';
 
 function CattleRoster() {
+    const navigate = useNavigate();
     const [cattle, setCattle] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -27,6 +30,11 @@ function CattleRoster() {
         weight_kg: '',
         notes: ''
     });
+
+    // Navigate to LiveMap with collar highlighted
+    const handleLocate = (collarId) => {
+        navigate(`/live-map?collar=${collarId}`);
+    };
 
     const fetchCattle = async () => {
         try {
@@ -179,6 +187,15 @@ function CattleRoster() {
                                     </td>
                                     <td>
                                         <div className="action-buttons">
+                                            {cow.assigned_collar_id && (
+                                                <button
+                                                    className="btn btn-icon btn-primary"
+                                                    onClick={() => handleLocate(cow.assigned_collar_id)}
+                                                    title="Locate on map"
+                                                >
+                                                    <MapPin size={16} />
+                                                </button>
+                                            )}
                                             <button
                                                 className="btn btn-icon btn-secondary"
                                                 onClick={() => openEditModal(cow)}

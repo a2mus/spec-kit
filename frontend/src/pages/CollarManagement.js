@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
     Radio,
@@ -8,7 +9,8 @@ import {
     AlertCircle,
     CheckCircle,
     Search,
-    Trash2
+    Trash2,
+    MapPin
 } from 'lucide-react';
 import './CollarManagement.css';
 
@@ -16,12 +18,18 @@ const API_URL = 'http://localhost:3001';
 const UNASSIGNED_COLLAR_ID = 9999;
 
 function CollarManagement() {
+    const navigate = useNavigate();
     const [collars, setCollars] = useState([]);
     const [cattle, setCattle] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [selectedCollar, setSelectedCollar] = useState(null);
     const [selectedCattleId, setSelectedCattleId] = useState('');
+
+    // Navigate to LiveMap with collar highlighted
+    const handleLocate = (collarId) => {
+        navigate(`/live-map?collar=${collarId}`);
+    };
 
     const fetchData = async () => {
         try {
@@ -231,8 +239,16 @@ function CollarManagement() {
                                         </td>
                                         <td>
                                             <button
+                                                className="btn btn-primary btn-sm"
+                                                onClick={() => handleLocate(collar.collar_id)}
+                                                title="Locate on map"
+                                            >
+                                                <MapPin size={14} /> Locate
+                                            </button>
+                                            <button
                                                 className="btn btn-secondary btn-sm"
                                                 onClick={() => handleUnassign(collar)}
+                                                style={{ marginLeft: '8px' }}
                                             >
                                                 <Unlink size={14} /> Unassign
                                             </button>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
     Heart,
@@ -8,7 +9,9 @@ import {
     AlertTriangle,
     CheckCircle,
     Clock,
-    Droplets
+    Droplets,
+    MapPin,
+    Filter
 } from 'lucide-react';
 import './HealthMonitor.css';
 
@@ -64,8 +67,16 @@ const getIssues = (collar) => {
 };
 
 function HealthMonitor() {
+    const navigate = useNavigate();
     const [collars, setCollars] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [searchTerm, setSearchTerm] = useState('');
+
+    // Navigate to LiveMap with collar highlighted
+    const handleLocate = (collarId) => {
+        navigate(`/live-map?collar=${collarId}`);
+    };
 
     useEffect(() => {
         const fetchData = async () => {
@@ -91,6 +102,16 @@ function HealthMonitor() {
     const healthPercentage = collars.length > 0
         ? Math.round((healthyCount / collars.length) * 100)
         : 0;
+
+    // Filter collars based on status and search
+    const filteredCollars = collars.filter(collar => {
+        const status = getCollarStatus(collar);
+        const matchesStatus = statusFilter === 'all' || status === statusFilter;
+        const matchesSearch = searchTerm === '' ||
+            collar.collar_id.toString().includes(searchTerm) ||
+            (collar.cattle_name && collar.cattle_name.toLowerCase().includes(searchTerm.toLowerCase()));
+        return matchesStatus && matchesSearch;
+    });
 
     // Get alerts
     const alerts = collars
@@ -168,6 +189,7 @@ function HealthMonitor() {
                                     <th>Issues</th>
                                     <th>Vitals</th>
                                     <th>Last Update</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -186,7 +208,7 @@ function HealthMonitor() {
                                             ))}
                                         </td>
                                         <td className="vitals-cell">
-                                            <span title="Body Temp">🌡️ {alert.body_temp}°C</span>
+                                            <span title="Body Temp">🌡️ {alert.body_temp?.toFixed(2) || '--'}°C</span>
                                             {alert.heart_rate && <span title="Heart Rate">❤️ {alert.heart_rate}</span>}
                                             {alert.spo2 && <span title="SpO2">💧 {alert.spo2}%</span>}
                                         </td>
@@ -195,6 +217,15 @@ function HealthMonitor() {
                                                 <Clock size={14} />
                                                 {new Date(alert.timestamp).toLocaleTimeString()}
                                             </span>
+                                        </td>
+                                        <td>
+                                            <button
+                                                className="btn btn-secondary btn-sm"
+                                                onClick={() => handleLocate(alert.collar_id)}
+                                                title="Locate on map"
+                                            >
+                                                <MapPin size={14} /> Locate
+                                            </button>
                                         </td>
                                     </tr>
                                 ))}
@@ -208,13 +239,35 @@ function HealthMonitor() {
             <div className="card">
                 <div className="card-header">
                     <h3 className="card-title">Real-time Vitals Monitor</h3>
-                    <div className="flex items-center gap-sm text-secondary">
-                        <Clock size={14} />
-                        Updates every 5 seconds
+                    <div className="flex items-center gap-md">
+                        <div className="filter-group">
+                            <Filter size={14} />
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                className="filter-select"
+                            >
+                                <option value="all">All ({collars.length})</option>
+                                <option value="healthy">Healthy ({healthyCount})</option>
+                                <option value="warning">Warning ({warningCount})</option>
+                                <option value="alert">Critical ({alertCount})</option>
+                            </select>
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Search collar ID..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="search-input-sm"
+                        />
+                        <div className="flex items-center gap-sm text-secondary">
+                            <Clock size={14} />
+                            Updates every 5s
+                        </div>
                     </div>
                 </div>
                 <div className="vitals-grid">
-                    {collars.map(collar => {
+                    {filteredCollars.map(collar => {
                         const status = getCollarStatus(collar);
                         return (
                             <div
@@ -233,7 +286,7 @@ function HealthMonitor() {
                                     <div className="metric-item">
                                         <div className="metric-icon"><Thermometer size={16} /></div>
                                         <div className="metric-data">
-                                            <div className="metric-value">{collar.body_temp || '--'}°C</div>
+                                            <div className="metric-value">{collar.body_temp?.toFixed(2) || '--'}°C</div>
                                             <div className="metric-label">Body Temp</div>
                                         </div>
                                     </div>
@@ -260,7 +313,7 @@ function HealthMonitor() {
                                     <div className="metric-item">
                                         <div className="metric-icon"><Battery size={16} /></div>
                                         <div className="metric-data">
-                                            <div className="metric-value">{collar.battery_voltage || '--'}V</div>
+                                            <div className="metric-value">{collar.battery_voltage?.toFixed(2) || '--'}V</div>
                                             <div className="metric-label">Battery</div>
                                         </div>
                                     </div>
@@ -271,6 +324,13 @@ function HealthMonitor() {
                                         Tag: {collar.tag_number}
                                     </div>
                                 )}
+                                <button
+                                    className="btn btn-secondary btn-sm vital-locate-btn"
+                                    onClick={() => handleLocate(collar.collar_id)}
+                                    title="Locate on map"
+                                >
+                                    <MapPin size={14} /> Locate
+                                </button>
                             </div>
                         );
                     })}

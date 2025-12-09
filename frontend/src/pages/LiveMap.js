@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
-import { MapContainer, TileLayer, Polygon, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon, Marker, Popup, useMap, LayersControl } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet-draw';
 import {
@@ -218,13 +219,16 @@ function DrawControlNative({ onCreated }) {
 }
 
 function LiveMap() {
+    const [searchParams] = useSearchParams();
     const [fences, setFences] = useState([]);
     const [collars, setCollars] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [selectedCollar, setSelectedCollar] = useState(null);
+    const [highlightedCollar, setHighlightedCollar] = useState(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const hasInitialFit = useRef(false);
+    const hasZoomedToCollar = useRef(false);
     const mapRef = useRef(null);
     const previousCollarsRef = useRef(null);
 
@@ -258,6 +262,24 @@ function LiveMap() {
         const interval = setInterval(fetchCollars, 5000);
         return () => clearInterval(interval);
     }, []);
+
+    // Handle zoom-to-collar from URL parameter
+    useEffect(() => {
+        const collarId = searchParams.get('collar');
+        if (collarId && collars.length > 0 && mapRef.current && !hasZoomedToCollar.current) {
+            const targetCollar = collars.find(c => c.collar_id === parseInt(collarId));
+            if (targetCollar && targetCollar.latitude && targetCollar.longitude) {
+                // Zoom to collar position
+                mapRef.current.setView([targetCollar.latitude, targetCollar.longitude], 17);
+                // Highlight and select the collar
+                setSelectedCollar(targetCollar.collar_id);
+                setHighlightedCollar(targetCollar.collar_id);
+                hasZoomedToCollar.current = true;
+                // Clear highlight after 5 seconds
+                setTimeout(() => setHighlightedCollar(null), 5000);
+            }
+        }
+    }, [searchParams, collars]);
 
     const handleCreate = async (e) => {
         const { layer } = e;
@@ -384,8 +406,8 @@ function LiveMap() {
                                     <div className="cattle-info">
                                         <div className="cattle-id">Collar #{collar.collar_id}</div>
                                         <div className="cattle-meta">
-                                            <span><Thermometer size={12} /> {collar.body_temp}°C</span>
-                                            <span><Battery size={12} /> {collar.battery_voltage}V</span>
+                                            <span><Thermometer size={12} /> {collar.body_temp?.toFixed(2)}°C</span>
+                                            <span><Battery size={12} /> {collar.battery_voltage?.toFixed(2)}V</span>
                                         </div>
                                     </div>
                                     <div className={`badge badge-${status === 'healthy' ? 'success' : status === 'warning' ? 'warning' : 'alert'}`}>
@@ -468,10 +490,21 @@ function LiveMap() {
                     scrollWheelZoom={true}
                     ref={mapRef}
                 >
-                    <TileLayer
-                        attribution='&copy; OpenStreetMap contributors'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
+                    {/* Layer Control for switching between Street and Satellite views */}
+                    <LayersControl position="topright">
+                        <LayersControl.BaseLayer checked name="Street Map">
+                            <TileLayer
+                                attribution='&copy; OpenStreetMap contributors'
+                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            />
+                        </LayersControl.BaseLayer>
+                        <LayersControl.BaseLayer name="Satellite">
+                            <TileLayer
+                                attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+                                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                            />
+                        </LayersControl.BaseLayer>
+                    </LayersControl>
                     <FitBounds fences={fences} collars={collars} hasInitialFit={hasInitialFit} />
                     <DrawControlNative onCreated={handleCreate} />
 
@@ -532,11 +565,11 @@ function LiveMap() {
                                         </div>
                                         <div className="popup-row">
                                             <span className="popup-label">Body Temp</span>
-                                            <span className="popup-value">{collar.body_temp}°C</span>
+                                            <span className="popup-value">{collar.body_temp?.toFixed(2)}°C</span>
                                         </div>
                                         <div className="popup-row">
                                             <span className="popup-label">Battery</span>
-                                            <span className="popup-value">{collar.battery_voltage}V</span>
+                                            <span className="popup-value">{collar.battery_voltage?.toFixed(2)}V</span>
                                         </div>
                                         <div className="popup-row">
                                             <span className="popup-label">Activity</span>
