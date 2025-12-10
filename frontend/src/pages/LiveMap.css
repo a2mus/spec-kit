@@ -233,6 +233,52 @@
     color: var(--color-primary-blue);
 }
 
+.map-control-btn.active {
+    background: var(--color-primary-blue);
+    color: white;
+    border-color: var(--color-primary-blue);
+}
+
+/* Buffer Zone Legend */
+.buffer-zone-legend {
+    position: absolute;
+    bottom: var(--space-lg);
+    right: var(--space-lg);
+    z-index: 1000;
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-light);
+    min-width: 160px;
+}
+
+.legend-title {
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-primary);
+    margin-bottom: var(--space-sm);
+    padding-bottom: var(--space-sm);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 4px 0;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.legend-color {
+    width: 16px;
+    height: 12px;
+    border-radius: 2px;
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+
 /* Move Leaflet draw controls down to avoid overlap with layer control */
 .map-main .leaflet-draw {
     margin-top: 50px;

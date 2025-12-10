@@ -968,6 +968,54 @@ app.get('/api/activity/alerts', async (req, res) => {
   }
 });
 
+// =============================================
+// COLLAR POSITION HISTORY (for movement trails)
+// =============================================
+
+// GET /api/collars/position-history - Fetch recent positions for all collars
+app.get('/api/collars/position-history', async (req, res) => {
+  const { limit = 10 } = req.query;
+  const positionLimit = Math.min(Math.max(parseInt(limit) || 10, 1), 50);
+
+  try {
+    // Use window function to get last N positions per collar efficiently
+    const result = await pool.query(`
+      WITH ranked_positions AS (
+        SELECT 
+          collar_id,
+          latitude,
+          longitude,
+          timestamp,
+          ROW_NUMBER() OVER (PARTITION BY collar_id ORDER BY timestamp DESC) as rn
+        FROM "LocationHistory"
+        WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+      )
+      SELECT collar_id, latitude, longitude, timestamp
+      FROM ranked_positions
+      WHERE rn <= $1
+      ORDER BY collar_id, timestamp DESC
+    `, [positionLimit]);
+
+    // Group by collar_id
+    const historyByCollar = {};
+    result.rows.forEach(row => {
+      if (!historyByCollar[row.collar_id]) {
+        historyByCollar[row.collar_id] = [];
+      }
+      historyByCollar[row.collar_id].push({
+        latitude: row.latitude,
+        longitude: row.longitude,
+        timestamp: row.timestamp
+      });
+    });
+
+    res.status(200).json(historyByCollar);
+  } catch (error) {
+    console.error('Error fetching position history:', error);
+    res.status(500).send({ error: 'Internal server error' });
+  }
+});
+
 // --- Start Server ---
 app.listen(port, () => {
   console.log(`Backend server listening on port ${port} `);

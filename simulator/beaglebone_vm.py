@@ -390,7 +390,6 @@ def check_geofence_status_advanced(lat, lon, direction_tracker, heart_rate=None,
             if not polygon or len(polygon) < 3:
                 continue
             
-            valid_fence_count += 1
             if point_in_polygon(lat, lon, polygon):
                 inside_fences.append(fence)
         except Exception:

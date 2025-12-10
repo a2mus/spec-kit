@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
-import { MapContainer, TileLayer, Polygon, Marker, Popup, useMap, LayersControl } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon, Marker, Popup, useMap, LayersControl, Polyline, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet-draw';
+import * as turf from '@turf/turf';
 import {
     Search,
     Filter,
@@ -15,7 +16,10 @@ import {
     Activity,
     MapPin,
     Crosshair,
-    Trash2
+    Trash2,
+    Eye,
+    EyeOff,
+    Navigation
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
@@ -66,6 +70,83 @@ L.Icon.Default.mergeOptions({
 });
 
 const API_URL = 'http://localhost:3001';
+
+// Buffer zone configuration (in meters) - matches beaglebone_vm.py thresholds
+// Defined from outermost to innermost for proper layering
+const BUFFER_ZONES = [
+    { name: 'warning_1', outerDistance: 10, innerDistance: 15, color: '#EAB308', label: 'Warning 1 (10-15m)' }, // Yellow - 10m to 15m inward
+    { name: 'warning_2', outerDistance: 5, innerDistance: 10, color: '#F97316', label: 'Warning 2 (5-10m)' },   // Orange - 5m to 10m inward
+    { name: 'breach', outerDistance: 0, innerDistance: 5, color: '#EF4444', label: 'Breach (<5m)' }             // Red - fence edge to 5m inward
+];
+
+/**
+ * Create buffer zone ring polygons for a fence using Turf.js
+ * Creates donut-shaped rings showing each warning zone distinctly
+ * @param {Array} positions - Array of [lat, lng] coordinates (Leaflet format)
+ * @returns {Array} Array of { outerPositions, innerPositions, color, name } objects for each ring zone
+ */
+const createBufferZones = (positions) => {
+    if (!positions || positions.length < 3) return [];
+
+    try {
+        // Convert positions to GeoJSON format (lng, lat for GeoJSON)
+        const coordinates = positions.map(pos => [pos[1], pos[0]]);
+        // Close the polygon if not already closed
+        if (coordinates[0][0] !== coordinates[coordinates.length - 1][0] ||
+            coordinates[0][1] !== coordinates[coordinates.length - 1][1]) {
+            coordinates.push(coordinates[0]);
+        }
+
+        const fencePolygon = turf.polygon([coordinates]);
+        const bufferZones = [];
+
+        // Create ring zones - each zone has outer and inner boundaries
+        BUFFER_ZONES.forEach(zone => {
+            try {
+                // Outer boundary of this zone
+                let outerPoly;
+                if (zone.outerDistance === 0) {
+                    // For breach zone, outer boundary is the fence itself
+                    outerPoly = fencePolygon;
+                } else {
+                    outerPoly = turf.buffer(fencePolygon, -zone.outerDistance / 1000, { units: 'kilometers' });
+                }
+
+                // Inner boundary (the hole in the ring)
+                const innerPoly = turf.buffer(fencePolygon, -zone.innerDistance / 1000, { units: 'kilometers' });
+
+                if (!outerPoly || !outerPoly.geometry || !outerPoly.geometry.coordinates) return;
+
+                // Get outer ring coordinates
+                const outerCoords = outerPoly.geometry.coordinates[0];
+                const outerPositions = outerCoords.map(coord => [coord[1], coord[0]]);
+
+                // Get inner ring coordinates (for the hole) if it exists
+                let innerPositions = null;
+                if (innerPoly && innerPoly.geometry && innerPoly.geometry.coordinates && innerPoly.geometry.coordinates[0]) {
+                    const innerCoords = innerPoly.geometry.coordinates[0];
+                    innerPositions = innerCoords.map(coord => [coord[1], coord[0]]);
+                }
+
+                bufferZones.push({
+                    name: zone.name,
+                    outerPositions: outerPositions,
+                    innerPositions: innerPositions,
+                    color: zone.color,
+                    label: zone.label
+                });
+            } catch (e) {
+                // Buffer might fail for small polygons - skip silently
+                console.debug(`Buffer zone ${zone.name} could not be created:`, e.message);
+            }
+        });
+
+        return bufferZones;
+    } catch (error) {
+        console.error('Error creating buffer zones:', error);
+        return [];
+    }
+};
 
 // Create custom cow icons for different statuses (health + geofence alerts + direction)
 const createCowIcon = (status, alertState = 'safe', direction = 'stationary') => {
@@ -227,6 +308,9 @@ function LiveMap() {
     const [selectedCollar, setSelectedCollar] = useState(null);
     const [highlightedCollar, setHighlightedCollar] = useState(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [showBufferZones, setShowBufferZones] = useState(true);
+    const [positionHistory, setPositionHistory] = useState({});
+    const [showTrails, setShowTrails] = useState(true);
     const hasInitialFit = useRef(false);
     const hasZoomedToCollar = useRef(false);
     const mapRef = useRef(null);
@@ -255,11 +339,24 @@ function LiveMap() {
         }
     };
 
+    const fetchPositionHistory = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/collars/position-history?limit=20`);
+            setPositionHistory(response.data);
+        } catch (error) {
+            console.error("Error fetching position history", error);
+        }
+    };
+
     useEffect(() => {
         fetchFences();
         fetchCollars();
+        fetchPositionHistory();
 
-        const interval = setInterval(fetchCollars, 5000);
+        const interval = setInterval(() => {
+            fetchCollars();
+            fetchPositionHistory();
+        }, 5000);
         return () => clearInterval(interval);
     }, []);
 
@@ -481,7 +578,44 @@ function LiveMap() {
                     >
                         <Maximize2 size={18} />
                     </button>
+                    <button
+                        className={`map-control-btn ${showBufferZones ? 'active' : ''}`}
+                        onClick={() => setShowBufferZones(!showBufferZones)}
+                        title={showBufferZones ? 'Hide buffer zones' : 'Show buffer zones'}
+                    >
+                        {showBufferZones ? <Eye size={18} /> : <EyeOff size={18} />}
+                    </button>
+                    <button
+                        className={`map-control-btn ${showTrails ? 'active' : ''}`}
+                        onClick={() => setShowTrails(!showTrails)}
+                        title={showTrails ? 'Hide movement trails' : 'Show movement trails'}
+                    >
+                        <Navigation size={18} />
+                    </button>
                 </div>
+
+                {/* Buffer Zone Legend */}
+                {showBufferZones && (
+                    <div className="buffer-zone-legend">
+                        <div className="legend-title">Alert Zones</div>
+                        <div className="legend-item">
+                            <span className="legend-color" style={{ backgroundColor: '#10B981' }}></span>
+                            <span>Safe (&gt;15m)</span>
+                        </div>
+                        <div className="legend-item">
+                            <span className="legend-color" style={{ backgroundColor: '#EAB308' }}></span>
+                            <span>Warning 1 (10-15m)</span>
+                        </div>
+                        <div className="legend-item">
+                            <span className="legend-color" style={{ backgroundColor: '#F97316' }}></span>
+                            <span>Warning 2 (5-10m)</span>
+                        </div>
+                        <div className="legend-item">
+                            <span className="legend-color" style={{ backgroundColor: '#EF4444' }}></span>
+                            <span>Breach (&lt;5m)</span>
+                        </div>
+                    </div>
+                )}
 
                 <MapContainer
                     center={mapCenter}
@@ -496,12 +630,14 @@ function LiveMap() {
                             <TileLayer
                                 attribution='&copy; OpenStreetMap contributors'
                                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                maxZoom={19}
                             />
                         </LayersControl.BaseLayer>
                         <LayersControl.BaseLayer name="Satellite">
                             <TileLayer
                                 attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
                                 url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                                maxZoom={19}
                             />
                         </LayersControl.BaseLayer>
                     </LayersControl>
@@ -515,7 +651,7 @@ function LiveMap() {
                             positions={fence.positions}
                             pathOptions={{
                                 color: '#3B82F6',
-                                fillColor: '#3B82F6',
+                                fillColor: '#10B981',
                                 fillOpacity: 0.15,
                                 weight: 2
                             }}
@@ -524,6 +660,117 @@ function LiveMap() {
                             }}
                         />
                     ))}
+
+                    {/* Buffer Zones - Rendered as rings (polygons with holes) */}
+                    {showBufferZones && fences.map(fence => {
+                        const bufferZones = createBufferZones(fence.positions);
+                        return bufferZones.map((zone) => {
+                            // Create polygon with hole: [outerRing, innerRing]
+                            // If no innerPositions, just use outerPositions as a simple polygon
+                            const polygonPositions = zone.innerPositions
+                                ? [zone.outerPositions, zone.innerPositions]
+                                : zone.outerPositions;
+
+                            return (
+                                <Polygon
+                                    key={`${fence.id}-buffer-${zone.name}`}
+                                    positions={polygonPositions}
+                                    pathOptions={{
+                                        color: zone.color,
+                                        fillColor: zone.color,
+                                        fillOpacity: 0.35,
+                                        weight: 1,
+                                        dashArray: '4, 4'
+                                    }}
+                                />
+                            );
+                        });
+                    })}
+
+                    {/* Movement Trails - Discontinuous dots with connecting lines */}
+                    {showTrails && filteredCollars.map(collar => {
+                        const history = positionHistory[collar.collar_id];
+                        if (!history || history.length < 2) return null;
+
+                        const status = getCollarStatus(collar);
+                        const trailColor = status === 'healthy' ? '#10B981' : status === 'warning' ? '#F59E0B' : '#EF4444';
+
+                        // Create positions array in chronological order (oldest first)
+                        const positions = history.map(h => [h.latitude, h.longitude]).reverse();
+
+                        // Helper function to calculate distance between two points (in meters)
+                        const getDistance = (pos1, pos2) => {
+                            const R = 6371000; // Earth's radius in meters
+                            const lat1 = pos1[0] * Math.PI / 180;
+                            const lat2 = pos2[0] * Math.PI / 180;
+                            const dLat = (pos2[0] - pos1[0]) * Math.PI / 180;
+                            const dLon = (pos2[1] - pos1[1]) * Math.PI / 180;
+                            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                                Math.cos(lat1) * Math.cos(lat2) *
+                                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                        };
+
+                        // Break trail into segments when consecutive points are > 100m apart
+                        const MAX_SEGMENT_DISTANCE = 100; // meters
+                        const segments = [];
+                        let currentSegment = [positions[0]];
+
+                        for (let i = 1; i < positions.length; i++) {
+                            const dist = getDistance(positions[i - 1], positions[i]);
+                            if (dist > MAX_SEGMENT_DISTANCE) {
+                                // Break: save current segment if it has 2+ points
+                                if (currentSegment.length >= 2) {
+                                    segments.push(currentSegment);
+                                }
+                                currentSegment = [positions[i]];
+                            } else {
+                                currentSegment.push(positions[i]);
+                            }
+                        }
+                        // Don't forget the last segment
+                        if (currentSegment.length >= 2) {
+                            segments.push(currentSegment);
+                        }
+
+                        return (
+                            <React.Fragment key={`trail-${collar.collar_id}`}>
+                                {/* Connecting line segments */}
+                                {segments.map((segment, segIdx) => (
+                                    <Polyline
+                                        key={`trail-line-${collar.collar_id}-${segIdx}`}
+                                        positions={segment}
+                                        pathOptions={{
+                                            color: trailColor,
+                                            weight: 2,
+                                            opacity: 0.4,
+                                            dashArray: '5, 8'
+                                        }}
+                                    />
+                                ))}
+                                {/* Trail dots - older positions are more faded */}
+                                {history.map((pos, index) => {
+                                    // Index 0 is most recent, so we skip it (current position shown by marker)
+                                    if (index === 0) return null;
+                                    const opacity = 0.8 - (index * 0.035); // Fade from 0.8 to ~0.1 for 20 points
+                                    return (
+                                        <CircleMarker
+                                            key={`trail-dot-${collar.collar_id}-${index}`}
+                                            center={[pos.latitude, pos.longitude]}
+                                            radius={4}
+                                            pathOptions={{
+                                                color: trailColor,
+                                                fillColor: trailColor,
+                                                fillOpacity: Math.max(0.15, opacity),
+                                                weight: 1,
+                                                opacity: Math.max(0.2, opacity)
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </React.Fragment>
+                        );
+                    })}
 
                     {/* Cattle Markers */}
                     {filteredCollars.map(collar => {

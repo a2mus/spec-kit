@@ -1,5 +1,28 @@
 # Progress Log
 
+## 2025-12-10 - Buffer Zone Visualization & Bug Fixes
+- **Critical Bug Fix** (`beaglebone_vm.py`):
+  - Fixed undefined `valid_fence_count` variable in `check_geofence_status_advanced()` causing cattle inside fence to show breach alerts
+  - The variable was used without initialization, causing NameError caught silently by exception handler, skipping all fence checks
+- **Buffer Zone Visualization** (`LiveMap.js`):
+  - Added `@turf/turf` dependency for polygon buffering
+  - Implemented `createBufferZones()` function returning `outerPositions` and `innerPositions` for each zone
+  - **Key fix**: Used react-leaflet Polygon with holes (`[outerRing, innerRing]` nested arrays) for proper ring shapes
+  - Visual zones: Red (breach <5m), Orange (warning_2 5-10m), Yellow (warning_1 10-15m), Green (safe >15m)
+  - Toggle button (Eye icon) to show/hide buffer zones
+  - Legend component in bottom-right corner showing zone colors
+  - Changed fence fill color to green for safe zone visual contrast
+- **Movement Trails** (`LiveMap.js` + `server.js`):
+  - **Backend**: New `GET /api/collars/position-history?limit=20` endpoint using SQL window function for efficient per-collar position retrieval from `LocationHistory` table
+  - **Frontend State**: `positionHistory` state + `fetchPositionHistory()` called every 5 seconds
+  - `Polyline` connecting previous positions with dashed lines
+  - `CircleMarker` dots fading based on age (opacity decreases with index)
+  - **Segment breaking**: Trail lines break when consecutive points >100m apart (Haversine distance) to prevent incoherent lines when cattle spawn/teleport
+  - Toggle button (Navigation icon) to show/hide trails
+- **CSS Updates** (`LiveMap.css`):
+  - Added `.map-control-btn.active` style for toggle buttons
+  - Added `.buffer-zone-legend` styles for zone legend panel
+
 ## 2025-12-09 - Virtual Fencing Feature Improvements (Walkthrough Session)
 - **Geofencing Logic Enhancements** (`beaglebone_vm.py`):
   - Implemented "Max Safety" nested fence logic - uses maximum distance to edge across all containing fences

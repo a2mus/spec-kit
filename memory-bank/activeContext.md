@@ -1,28 +1,31 @@
 # Active Context
 
 ## Current Focus
-- Graduated Alert System verification and testing
-- GeofenceAlertNotification component enhancement for outside detection
-- Dashboard activity feed updates for direction events
-- Docker rebuild to apply recent changes from walkthrough session
+- Buffer zone visualization testing and validation
+- Movement trails feature refinement
+- Docker compose running with latest changes
+
+## Recent Changes (2025-12-10 - Buffer Zones & Bug Fixes)
+### Critical Bug Fix (beaglebone_vm.py)
+- Fixed `valid_fence_count` undefined variable in `check_geofence_status_advanced()`
+- Bug caused all fence checks to be skipped, triggering false breach alerts for cattle inside fences
+- Root cause: `NameError` silently caught by `except Exception:` block
+
+### Buffer Zone Visualization (LiveMap.js)
+- Added `@turf/turf` dependency for geographic polygon operations
+- Created `createBufferZones()` using `turf.difference()` for ring-shaped zones (donuts, not overlapping fills)
+- Zones: Breach (red 0-5m), Warning 2 (orange 5-10m), Warning 1 (yellow 10-15m), Safe (green center)
+- Eye toggle button to show/hide buffer zones
+- Legend panel showing zone colors and distances
+
+### Movement Trails (LiveMap.js)
+- Position history fetched from `/api/collars/position-history?limit=20`
+- Dashed polylines connecting historical positions
+- CircleMarker dots with opacity fading by age
+- Trail segments break when consecutive points >100m apart
+- Navigation toggle button to show/hide trails
 
 ## Recent Changes (2025-12-09 - Walkthrough Session)
-### Geofencing Logic Improvements (beaglebone_vm.py)
-- "Max Safety" nested fence logic - uses max distance across containing fences
-- Intersection handling: No alerts inside any valid fence
-- Entering cattle: Silent farmer notification instead of alerts
-- New functions: `calculate_polygon_area()`, `point_in_any_fence()`, `get_largest_containing_fence()`
-
-### UI Improvements
-- Health Monitor: Decimal formatting, Locate buttons, filter bar
-- Live Map: Satellite imagery toggle (Esri World Imagery), URL param zoom (`?collar=123`)
-- Navigation: "Locate on Map" buttons in CattleRoster and CollarManagement
-
-### Verified
-- Python syntax check passed
-- Backend fence filtering (only active fences in sync)
-
-## Recent Changes (2025-12-08)
 ### Direction-Aware Alerts (beaglebone_vm.py)
 - Added `DirectionTracker` class for cattle movement analysis
 - Movement directions: `entering`, `exiting`, `stationary`, `parallel`

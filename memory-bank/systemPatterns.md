@@ -143,6 +143,24 @@ graph TD
 - Fences are cached locally to reduce API calls
 - Only active fences (`is_active = TRUE`) are synced
 
+### Buffer Zone Visualization (Frontend)
+The LiveMap renders color-coded ring zones using Turf.js:
+
+| Zone | Distance from Edge | Color | Ring Created By |
+|------|-------------------|-------|-----------------|
+| Breach | 0-5m | Red (#EF4444) | fence - 5m buffer |
+| Warning 2 | 5-10m | Orange (#F97316) | 5m buffer - 10m buffer |
+| Warning 1 | 10-15m | Yellow (#EAB308) | 10m buffer - 15m buffer |
+| Safe | >15m | Green (#10B981) | 15m buffer (center) |
+
+**Implementation**:
+- `@turf/turf` library for polygon operations
+- `turf.buffer()` with negative distance for inward offset
+- **Polygon with holes**: React-leaflet accepts `[outerRing, innerRing]` nested arrays
+- Each zone returns `{ outerPositions, innerPositions }` for ring creation
+- Toggle button with Eye icon to show/hide zones
+- Legend panel in bottom-right corner
+
 ### Direction-Aware Alert Protocol
 The humane alert system uses direction detection to suppress unnecessary alerts:
 

@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@react-leaflet/core": "^2.1.0",
+    "@turf/turf": "^7.0.0",
     "axios": "^1.6.0",
     "chart.js": "^4.5.1",
     "leaflet": "^1.9.4",

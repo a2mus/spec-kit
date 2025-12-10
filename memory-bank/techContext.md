@@ -4,7 +4,7 @@
 - **Orchestration**: Docker Compose (database, backend, frontend)
 - **Database**: TimescaleDB (PostgreSQL 14)
 - **Backend**: Node.js 16, Express, pg, CORS
-- **Frontend**: React 18, React Router, react-leaflet, Chart.js, Lucide React
+- **Frontend**: React 18, React Router, react-leaflet, Chart.js, Lucide React, **@turf/turf**
 - **Hardware (Edge)**: BeagleBone Black, SX1276/RFM95 LoRa Module
 - **Edge Software**: Python/C++ serial reader + HTTP client
 - **Simulator**: Python 3 (`simulator/beaglebone_vm.py`)
@@ -53,6 +53,7 @@ Plus: heart_rate, spo2 (simulated in beaglebone_vm.py)
 - `PATCH /api/collars/:id/assign` - Assign to cattle, generate new ID
 - `PATCH /api/collars/:id/unassign` - Remove cattle assignment
 - `GET /api/collars/latest` - For frontend polling **(includes alert_state)**
+- `GET /api/collars/position-history` - Historical positions for movement trails (limit param)
 - `POST /api/collars/:oldId/confirm-new-id` - Confirm ID change after LoRa delivery
 
 ### Dashboard
