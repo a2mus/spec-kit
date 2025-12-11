@@ -25,6 +25,7 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import './LiveMap.css';
 import GeofenceAlertNotification from '../components/GeofenceAlertNotification';
+import { MapScaleAndMeasure } from '../components/MapControls';
 
 // Component to fit map bounds to fences and cattle
 function FitBounds({ fences, collars, hasInitialFit }) {
@@ -341,7 +342,7 @@ function LiveMap() {
 
     const fetchPositionHistory = async () => {
         try {
-            const response = await axios.get(`${API_URL}/api/collars/position-history?limit=20`);
+            const response = await axios.get(`${API_URL}/api/collars/position-history?limit=100`);
             setPositionHistory(response.data);
         } catch (error) {
             console.error("Error fetching position history", error);
@@ -367,7 +368,7 @@ function LiveMap() {
             const targetCollar = collars.find(c => c.collar_id === parseInt(collarId));
             if (targetCollar && targetCollar.latitude && targetCollar.longitude) {
                 // Zoom to collar position
-                mapRef.current.setView([targetCollar.latitude, targetCollar.longitude], 17);
+                mapRef.current.setView([targetCollar.latitude, targetCollar.longitude], 19);
                 // Highlight and select the collar
                 setSelectedCollar(targetCollar.collar_id);
                 setHighlightedCollar(targetCollar.collar_id);
@@ -643,6 +644,7 @@ function LiveMap() {
                     </LayersControl>
                     <FitBounds fences={fences} collars={collars} hasInitialFit={hasInitialFit} />
                     <DrawControlNative onCreated={handleCreate} />
+                    <MapScaleAndMeasure />
 
                     {/* Fences */}
                     {fences.map(fence => (
@@ -752,7 +754,7 @@ function LiveMap() {
                                 {history.map((pos, index) => {
                                     // Index 0 is most recent, so we skip it (current position shown by marker)
                                     if (index === 0) return null;
-                                    const opacity = 0.8 - (index * 0.035); // Fade from 0.8 to ~0.1 for 20 points
+                                    const opacity = 0.8 - (index * 0.007); // Fade from 0.8 to ~0.1 for 100 points
                                     return (
                                         <CircleMarker
                                             key={`trail-dot-${collar.collar_id}-${index}`}

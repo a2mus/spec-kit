@@ -604,3 +604,44 @@
         box-shadow: 0 0 0 4px rgba(239, 68, 68, 0);
     }
 }
+
+/* =============================================
+   MEASURE TOOL STYLES
+   ============================================= */
+
+.leaflet-control-measure {
+    background: white;
+    border-radius: var(--radius-sm);
+}
+
+.leaflet-control-measure .measure-button {
+    border-radius: var(--radius-sm);
+}
+
+.leaflet-control-measure .measure-button:hover {
+    background: var(--bg-hover) !important;
+}
+
+.measure-tooltip {
+    background: white;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    box-shadow: var(--shadow-md);
+    font-family: inherit;
+}
+
+.measure-tooltip::before {
+    border-top-color: white;
+}
+
+/* Scale control styling */
+.leaflet-control-scale-line {
+    background: rgba(255, 255, 255, 0.9);
+    border: 2px solid #333;
+    border-top: none;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 5px;
+    text-align: center;
+}

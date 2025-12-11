@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import './Dashboard.css';
+import { ScaleControl } from '../components/MapControls';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -268,6 +269,7 @@ function Dashboard() {
                                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                                 />
                                 <FitBounds fences={fences} collars={collars} hasInitialFit={hasInitialFit} />
+                                <ScaleControl position="bottomleft" />
                                 {fences.map(fence => (
                                     <Polygon
                                         key={fence.id}

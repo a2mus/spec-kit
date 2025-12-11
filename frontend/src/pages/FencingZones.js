@@ -16,6 +16,7 @@ import {
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import './FencingZones.css';
+import { MapScaleAndMeasure } from '../components/MapControls';
 
 const API_URL = 'http://localhost:3001';
 
@@ -283,6 +284,7 @@ function FencingZones() {
                         </LayersControl>
                         <DrawControlNative onCreated={handleCreate} />
                         <FitBounds fences={fences} hasInitialFit={hasInitialFit} />
+                        <MapScaleAndMeasure />
 
                         {fences.map(fence => (
                             <Polygon
