@@ -110,24 +110,32 @@
 
 @media (max-width: 768px) {
     .sidebar {
-        width: var(--sidebar-collapsed-width);
+        transform: translateX(-100%);
+        width: var(--sidebar-width);
+    }
+
+    .app-container.sidebar-collapsed .sidebar {
+        transform: translateX(0);
     }
 
     .sidebar .nav-label,
     .sidebar .logo-text {
-        display: none;
-    }
-
-    .sidebar .logo-icon {
         display: block;
     }
 
     .sidebar .nav-item {
-        justify-content: center;
-        padding: 12px;
+        justify-content: flex-start;
+        padding: 12px var(--space-md);
     }
 
     .sidebar-toggle {
-        display: none;
+        display: flex;
+        right: -32px;
+        background: var(--color-primary-green);
+        color: white;
+        width: 32px;
+        height: 32px;
+        border-radius: 0 4px 4px 0;
+        top: 80px;
     }
 }

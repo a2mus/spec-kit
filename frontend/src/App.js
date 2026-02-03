@@ -28,13 +28,13 @@ function App() {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     return (
-        <Router>
+        <Router basename="/vfence">
             <div className={`app-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
                 <Sidebar
                     collapsed={sidebarCollapsed}
                     onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
                 />
-                <main className="main-content" style={{ marginLeft: sidebarCollapsed ? '64px' : '240px' }}>
+                <main className="main-content">
                     <Routes>
                         <Route path="/" element={
                             <>

@@ -115,11 +115,34 @@
 @media (max-width: 1024px) {
     .dashboard-row {
         grid-template-columns: 1fr;
+        gap: var(--space-md);
     }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
+    .dashboard {
+        gap: var(--space-md);
+    }
+    
     .dashboard-map {
-        height: 250px;
+        height: 280px;
+    }
+    
+    .card {
+        padding: var(--space-md);
+    }
+
+    .quick-stat-item {
+        padding: var(--space-sm);
+    }
+}
+
+@media (max-width: 480px) {
+    .dashboard-map {
+        height: 220px;
+    }
+    
+    .stat-card-value {
+        font-size: 24px;
     }
 }
