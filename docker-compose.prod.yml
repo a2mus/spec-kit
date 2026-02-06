@@ -1,0 +1,61 @@
+services:
+  database:
+    image: timescale/timescaledb:latest-pg14
+    container_name: cattle-db-prod
+    restart: always
+    networks:
+      - nexus-net
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password # TODO: Change this for real production!
+      - POSTGRES_DB=virtual_fencing_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data-prod:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U user -d virtual_fencing_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cattle-backend-prod
+    restart: always
+    networks:
+      - nexus-net
+    ports:
+      - "3001:3001"
+    environment:
+      - DATABASE_URL=postgres://user:password@database:5432/virtual_fencing_db # TODO: Match DB password
+      - NODE_ENV=production
+    depends_on:
+      database:
+        condition: service_healthy
+    # No volume binding for code in production!
+
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile.prod # Uses the optimized multi-stage build
+    container_name: cattle-frontend-prod
+    restart: always
+    networks:
+      - nexus-net
+    ports:
+      - "3000:80" # Maps host port 3000 to container nginx port 80
+    environment:
+      - REACT_APP_API_URL=https://nexus-dz.duckdns.org/vfence-api
+    depends_on:
+      - backend
+
+volumes:
+  db-data-prod:
+
+networks:
+  nexus-net:
+    external: true
