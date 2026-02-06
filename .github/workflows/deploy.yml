@@ -18,8 +18,8 @@ jobs:
           port: 22
           script: |
             # Navigate to project directory (create if missing)
-            mkdir -p ~/projects/cattle-management
-            cd ~/projects/cattle-management
+            mkdir -p ~/Production/cattle-management
+            cd ~/Production/cattle-management
 
             # Clone if not exists, otherwise pull
             if [ ! -d ".git" ]; then

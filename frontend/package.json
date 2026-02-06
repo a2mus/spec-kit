@@ -1,6 +1,7 @@
 {
   "name": "virtual-fencing-frontend",
   "version": "1.0.0",
+  "homepage": "/vfence",
   "private": true,
   "dependencies": {
     "@react-leaflet/core": "^2.1.0",
