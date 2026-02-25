@@ -7,6 +7,17 @@ Recent changes to the Specify CLI and templates are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-02-25
+
+### Added
+
+- **SDD Initiation Commands**: Three new commands for personalized Software-Driven Development initiation workflow
+  - **`brainstorm`**: Interactive product brainstorming and specification through guided Q&A. Generates `product-spec.md` with technology recommendations, architecture decisions, feature prioritization, and functional requirements
+  - **`uidesign`**: UI design specification workflow with AI-generated mockup prompts for tools like Google Stitch, v0, Bolt. Iterates on mockups with the developer and produces `ui-spec.md` with design system, component library, screen specs, and responsive strategy
+  - **`initiate`**: Generates project constitution from both `product-spec.md` and `ui-spec.md`, extracting best practices, coding standards, architecture principles, and development guidelines into `constitution.md`
+- All three commands output to `.specify/memory/` and chain together via handoffs (`brainstorm` → `uidesign` → `initiate`)
+- Added `SKILL_DESCRIPTIONS` entries for all three new commands
+
 ## [0.1.6] - 2026-02-23
 
 ### Fixed

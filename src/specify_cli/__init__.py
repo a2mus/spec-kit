@@ -1033,6 +1033,9 @@ SKILL_DESCRIPTIONS = {
     "constitution": "Create or update project governing principles and development guidelines. Use at project start to establish code quality, testing standards, and architectural constraints that guide all development.",
     "checklist": "Generate custom quality checklists for validating requirements completeness and clarity. Use to create unit tests for English that ensure spec quality before implementation.",
     "taskstoissues": "Convert tasks from tasks.md into GitHub issues. Use after task breakdown to track work items in GitHub project management.",
+    "brainstorm": "Interactive product brainstorming and specification workflow. Use at project start to define product requirements through guided Q&A. Generates product-spec.md with technology recommendations, architecture decisions, and functional requirements.",
+    "uidesign": "UI design specification workflow with AI-generated mockup prompts. Use after brainstorm to define the visual interface. Generates ui-spec.md with layout, components, styling, and interaction patterns.",
+    "initiate": "Generate project constitution from product and UI specifications. Use after brainstorm and uidesign to create development guidelines and best practices. Produces constitution.md for the entire development lifecycle.",
 }
 
 
