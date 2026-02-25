@@ -47,10 +47,10 @@ Choose your preferred installation method:
 
 #### Option 1: Persistent Installation (Recommended)
 
-Install once and use everywhere:
+Install once and use everywhere from your customized fork:
 
 ```bash
-uv tool install specify-cli --from git+https://github.com/github/spec-kit.git
+uv tool install specify-cli --from git+https://github.com/a2mus/spec-kit.git
 ```
 
 Then use the tool directly:
@@ -79,7 +79,7 @@ uv tool install specify-cli --force --from git+https://github.com/github/spec-ki
 Run directly without installing:
 
 ```bash
-uvx --from git+https://github.com/github/spec-kit.git specify init <PROJECT_NAME>
+uvx --from git+https://github.com/a2mus/spec-kit.git specify init <PROJECT_NAME>
 ```
 
 **Benefits of persistent installation:**
@@ -89,17 +89,34 @@ uvx --from git+https://github.com/github/spec-kit.git specify init <PROJECT_NAME
 - Better tool management with `uv tool list`, `uv tool upgrade`, `uv tool uninstall`
 - Cleaner shell configuration
 
-### 2. Establish project principles
+### 2. Establish project principles (Personalized SDD Protocol)
 
-Launch your AI assistant in the project directory. The `/speckit.*` commands are available in the assistant.
+Launch your AI assistant in the project directory. Your custom initiation workflow consists of three specialized stages:
 
-Use the **`/speckit.constitution`** command to create your project's governing principles and development guidelines that will guide all subsequent development.
-
+#### A. Brainstorm the Product Idea
+Use the **`/speckit.brainstorm`** command to narrow down your product vision through an interactive Q&A.
 ```bash
-/speckit.constitution Create principles focused on code quality, testing standards, user experience consistency, and performance requirements
+/speckit.brainstorm I want to build a cross-platform mobile app for tracking local artisanal bakeries.
 ```
+*Result: Generates `product-spec.md` with tech recommendations.*
 
-### 3. Create the spec
+#### B. Specify the UI Design
+Once the product is defined, use **`/speckit.uidesign`** to generate detailed UI prompts for mockup tools like Google Stitch, Bolt, or v0.
+```bash
+/speckit.uidesign Create a sleek, minimalist UI for the bakery app using a warm, earth-toned palette.
+```
+*Result: Generates `ui-spec.md` with layout and component specs.*
+
+#### C. Initiate the Constitution
+Finally, use **`/speckit.initiate`** to synthesize everything into your project's governing principles.
+```bash
+/speckit.initiate
+```
+*Result: Generates `constitution.md` based on your product and UI choices.*
+
+---
+
+### 3. Build the Feature Spec
 
 Use the **`/speckit.specify`** command to describe what you want to build. Focus on the **what** and **why**, not the tech stack.
 
@@ -264,6 +281,9 @@ Essential commands for the Spec-Driven Development workflow:
 
 | Command                 | Description                                                              |
 | ----------------------- | ------------------------------------------------------------------------ |
+| `/speckit.brainstorm`   | **(Custom)** Interactive product brainstorming and tech recommendations  |
+| `/speckit.uidesign`     | **(Custom)** UI specification and AI-generated mockup prompts            |
+| `/speckit.initiate`     | **(Custom)** Generate constitution from product and UI specs             |
 | `/speckit.constitution` | Create or update project governing principles and development guidelines |
 | `/speckit.specify`      | Define what you want to build (requirements and user stories)            |
 | `/speckit.plan`         | Create technical implementation plans with your chosen tech stack        |
