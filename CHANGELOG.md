@@ -7,6 +7,12 @@ Recent changes to the Specify CLI and templates are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-02-27
+
+### Added
+
+- New `/speckit.progress` command for checking spec progression and presenting status reports with accomplished/in-progress tasks, metrics, and next steps
+
 ## [0.2.0] - 2026-02-25
 
 ### Added
