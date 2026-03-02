@@ -58,28 +58,6 @@ Check and create ignore files based on detected technologies:
 - ESLint config → `.eslintignore`
 - Prettier config → `.prettierignore`
 
-**Common Patterns** (adapt to project tech stack):
-```
-# Build outputs
-build/
-dist/
-out/
-
-# Dependencies
-node_modules/
-.venv/
-__pycache__/
-
-# IDE / Editor
-.idea/
-.vscode/
-*.swp
-
-# Environment
-.env*
-*.log
-```
-
 If ignore file exists: Verify and append missing patterns
 If missing: Create with full pattern set
 
@@ -133,6 +111,12 @@ After all tasks:
   - Use `mcp_TestSprite_testsprite_generate_backend_test_plan` for API tests
   - Use `mcp_TestSprite_testsprite_generate_code_and_execute` to run tests
   - Generate test report for validation
+
+**Optional: Android Device Testing with Android MCP** (if available and Android project):
+  - Use `mcp_android-mcp_execute_adb_shell_command` to check device connection
+  - Use `mcp_android-mcp_get_screenshot` to capture app states
+  - Use `mcp_android-mcp_get_uilayout` to verify UI structure
+  - Test on physical device or emulator
 
 **Optional: Web/Hybrid UI Verification with Chrome DevTools MCP** (if available):
   - Use `mcp_chrome-devtools_take_screenshot` to capture UI states

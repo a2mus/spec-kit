@@ -18,7 +18,7 @@ This workflow creates a detailed implementation plan for a feature or task. The 
 
 This workflow follows the "Architect-Builder" model:
 - **Opus (Architect)**: Planning, architecture, state management, API dependencies - creates detailed plan WITHOUT writing code
-- **Builder**: Reads the plan and implements it with high volume/speed
+- **Gemini (Builder)**: Reads the plan and implements it with high volume/speed
 
 ## Purpose
 - Analyze requirements thoroughly with psychological and technical lens
@@ -190,8 +190,8 @@ The plan should be saved in `memory-bank/implementation-plan.md`. Execution is *
 
 ## Notes
 - Focus on WHAT to do, not HOW to code it
-- Include enough detail for the Builder to implement
+- Include enough detail for Gemini (The Builder) to implement
 - Reference existing code patterns when possible
 - Keep Backend (B) and Frontend (F) tasks clearly separated
-- For complex logic, note "Use UltraThink mode" for deep analysis
+- For complex logic, note "Use UltraThink mode" for Gemini to analyze deeply
 - If debugging is needed later, switch back to Opus for root cause analysis
