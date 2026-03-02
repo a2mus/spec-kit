@@ -1036,6 +1036,7 @@ SKILL_DESCRIPTIONS = {
     "brainstorm": "Interactive product brainstorming and specification workflow. Use at project start to define product requirements through guided Q&A. Generates product-spec.md with technology recommendations, architecture decisions, and functional requirements.",
     "uidesign": "UI design specification workflow with AI-generated mockup prompts. Use after brainstorm to define the visual interface. Generates ui-spec.md with layout, components, styling, and interaction patterns.",
     "initiate": "Generate project constitution from product and UI specifications. Use after brainstorm and uidesign to create development guidelines and best practices. Produces constitution.md for the entire development lifecycle.",
+    "progress": "Check spec progression and present a status report with accomplished/in-progress tasks, metrics, cross-referenced sources, and recommended next steps",
 }
 
 
