@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { useUI } from './context/UIContext';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import Dashboard from './pages/Dashboard';
@@ -25,6 +26,7 @@ function Settings() {
 }
 
 function App() {
+    const { direction } = useUI();
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     return (

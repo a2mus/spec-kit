@@ -96,6 +96,54 @@
   }
 }
 
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 .hover-scale {
   transition: transform var(--transition-normal);
 }
@@ -192,14 +240,26 @@ h6 {
 .main-content {
   flex: 1;
   margin-left: var(--sidebar-width);
+  margin-right: 0;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  transition: margin-left var(--transition-normal);
+  transition: margin-left var(--transition-normal), margin-right var(--transition-normal);
+}
+
+[dir="rtl"] .main-content {
+  margin-left: 0;
+  margin-right: var(--sidebar-width);
 }
 
 .app-container.sidebar-collapsed .main-content {
   margin-left: var(--sidebar-collapsed-width);
+  margin-right: 0;
+}
+
+[dir="rtl"] .app-container.sidebar-collapsed .main-content {
+  margin-left: 0;
+  margin-right: var(--sidebar-collapsed-width);
 }
 
 .page-content {
@@ -214,10 +274,12 @@ h6 {
 @media (max-width: 768px) {
   .main-content {
     margin-left: 0 !important;
+    margin-right: 0 !important;
   }
 
   .app-container.sidebar-collapsed .main-content {
     margin-left: 0 !important;
+    margin-right: 0 !important;
   }
 
   .page-content {
@@ -442,6 +504,11 @@ td {
   padding: var(--space-lg);
   text-align: left;
   border-bottom: 1px solid var(--border-light);
+}
+
+[dir="rtl"] th,
+[dir="rtl"] td {
+  text-align: right;
 }
 
 th {
@@ -747,6 +814,21 @@ tr:hover {
   border-left: 4px solid var(--color-alert);
 }
 
+[dir="rtl"] .vital-card.status-healthy {
+  border-left: none;
+  border-right: 4px solid var(--color-success);
+}
+
+[dir="rtl"] .vital-card.status-warning {
+  border-left: none;
+  border-right: 4px solid var(--color-warning);
+}
+
+[dir="rtl"] .vital-card.status-alert {
+  border-left: none;
+  border-right: 4px solid var(--color-alert);
+}
+
 .vital-avatar {
   width: 56px;
   height: 56px;
@@ -839,11 +921,22 @@ tr:hover {
 .search-input svg {
   position: absolute;
   left: 14px;
+  right: auto;
   top: 50%;
   transform: translateY(-50%);
   color: var(--text-light);
   width: 18px;
   height: 18px;
+}
+
+[dir="rtl"] .search-input svg {
+  left: auto;
+  right: 14px;
+}
+
+[dir="rtl"] .search-input input {
+  padding-left: 16px;
+  padding-right: 44px;
 }
 
 /* --- Zone Cards --- */

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 /**
  * GeofenceAlertNotification Component
@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react';
  * Displays toast notifications when collar alert states change.
  * Auto-dismisses after 5 seconds unless manually closed.
  */
-function GeofenceAlertNotification({ collars, previousCollarsRef }) {
+function GeofenceAlertNotification({ collars, previousCollarsRef, healthAlerts = [], onDismissHealth }) {
     const [alerts, setAlerts] = useState([]);
 
     const getAlertInfo = (alertState, direction, actionTaken) => {
@@ -27,7 +27,6 @@ function GeofenceAlertNotification({ collars, previousCollarsRef }) {
                 severity: 'outside'
             };
         }
-
         const info = {
             'warning_1': {
                 icon: '🔊',
@@ -42,12 +41,28 @@ function GeofenceAlertNotification({ collars, previousCollarsRef }) {
                 severity: 'warning'
             },
             'breach': {
-                icon: '⚡',
+                icon: '🚨',
                 title: 'BOUNDARY BREACH',
                 message: actionTaken === 'shock_disabled'
                     ? 'Cattle breached boundary - SHOCK DISABLED (stress detected)'
                     : 'Electric shock signal activated - cattle has breached the fence!',
                 severity: 'critical'
+            },
+            // Health Alert Types
+            'extended_lying': {
+                icon: '🛏️',
+                title: 'Extended Lying',
+                severity: 'warning'
+            },
+            'no_recent_data': {
+                icon: '📶',
+                title: 'Connection Lost',
+                severity: 'warning'
+            },
+            'low_confidence_patterns': {
+                icon: '❓',
+                title: 'Irregular Patterns',
+                severity: 'info'
             }
         };
         return info[alertState] || null;
@@ -119,11 +134,43 @@ function GeofenceAlertNotification({ collars, previousCollarsRef }) {
         });
 
         if (newAlerts.length > 0) {
-            setAlerts(prev => [...newAlerts, ...prev].slice(0, 5)); // Keep max 5 alerts
+            setAlerts(prev => [...newAlerts, ...prev].slice(0, 5)); // Keep max 5 active toasts
         }
 
         previousCollarsRef.current = collars;
     }, [collars, previousCollarsRef]);
+
+    // Handle incoming health alerts
+    const prevHealthAlertsRef = useRef([]);
+    useEffect(() => {
+        const newHealthToasts = [];
+        healthAlerts.forEach(h => {
+            const alreadyExists = prevHealthAlertsRef.current.some(
+                prev => prev.collar_id === h.collar_id && prev.alert_type === h.alert_type
+            );
+
+            if (!alreadyExists) {
+                const info = getAlertInfo(h.alert_type);
+                newHealthToasts.push({
+                    id: `${h.collar_id}-${h.alert_type}-${Date.now()}`,
+                    collar_id: h.collar_id,
+                    cattle_name: h.cattle_name,
+                    title: info?.title || h.alert_type,
+                    message: h.description,
+                    icon: info?.icon || '🩺',
+                    severity: h.severity || 'warning',
+                    isHealth: true,
+                    raw: h,
+                    timestamp: new Date()
+                });
+            }
+        });
+
+        if (newHealthToasts.length > 0) {
+            setAlerts(prev => [...newHealthToasts, ...prev].slice(0, 5));
+        }
+        prevHealthAlertsRef.current = healthAlerts;
+    }, [healthAlerts]);
 
     // Auto-dismiss alerts after 5 seconds
     useEffect(() => {
@@ -136,9 +183,12 @@ function GeofenceAlertNotification({ collars, previousCollarsRef }) {
         return () => clearTimeout(timer);
     }, [alerts]);
 
-    const dismissAlert = useCallback((alertId) => {
-        setAlerts(prev => prev.filter(a => a.id !== alertId));
-    }, []);
+    const dismissAlert = useCallback((alert) => {
+        setAlerts(prev => prev.filter(a => a.id !== alert.id));
+        if (alert.isHealth && onDismissHealth) {
+            onDismissHealth(alert.raw);
+        }
+    }, [onDismissHealth]);
 
     if (alerts.length === 0) return null;
 
@@ -161,7 +211,7 @@ function GeofenceAlertNotification({ collars, previousCollarsRef }) {
                     </div>
                     <button
                         className="geofence-alert-close"
-                        onClick={() => dismissAlert(alert.id)}
+                        onClick={() => dismissAlert(alert)}
                     >
                         ×
                     </button>

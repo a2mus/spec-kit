@@ -1,8 +1,7 @@
+/* Header - LTR by default, RTL via [dir="rtl"] */
 .header {
     position: fixed;
     top: 0;
-    right: 0;
-    left: var(--sidebar-width);
     height: var(--header-height);
     background: rgba(10, 10, 15, 0.8);
     backdrop-filter: blur(12px);
@@ -12,11 +11,26 @@
     justify-content: space-between;
     padding: 0 var(--space-xl);
     z-index: 900;
-    transition: left var(--transition-normal);
+    transition: left var(--transition-normal), right var(--transition-normal);
+
+    /* LTR default */
+    left: var(--sidebar-width);
+    right: 0;
+}
+
+[dir="rtl"] .header {
+    left: 0;
+    right: var(--sidebar-width);
 }
 
 .app-container.sidebar-collapsed .header {
     left: var(--sidebar-collapsed-width);
+    right: 0;
+}
+
+[dir="rtl"] .app-container.sidebar-collapsed .header {
+    left: 0;
+    right: var(--sidebar-collapsed-width);
 }
 
 .header-left {
@@ -138,6 +152,11 @@
     border: 2px solid var(--bg-card);
 }
 
+[dir="rtl"] .badge-premium {
+    right: auto;
+    left: -2px;
+}
+
 .header-user-premium {
     width: 40px;
     height: 40px;
@@ -167,7 +186,8 @@
 
 @media (max-width: 768px) {
     .header {
-        left: 0;
+        left: 0 !important;
+        right: 0 !important;
         padding: 0 var(--space-md);
     }
 

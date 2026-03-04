@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Search, Clock, Cpu, Shield, Zap } from 'lucide-react';
+import { Clock, Zap, Shield, Bell } from 'lucide-react';
+import { useLanguageDirection } from '../../hooks/useLanguageDirection';
+import LanguageSwitcher from '../common/LanguageSwitcher';
 import './Header.css';
 
 function Header({ title, alertCount = 0 }) {
+    const { t } = useLanguageDirection();
     const [currentTime, setCurrentTime] = useState(new Date());
 
     useEffect(() => {
@@ -16,41 +19,35 @@ function Header({ title, alertCount = 0 }) {
     return (
         <header className="header">
             <div className="header-left">
-                <div className="header-title-premium">{title}</div>
-            </div>
-
-            <div className="header-center">
-                <div className="search-premium">
-                    <Search size={18} className="search-icon-premium" />
-                    <input
-                        type="text"
-                        placeholder="System-wide query: search cattle, nodes or events..."
-                    />
+                <span className="header-title-premium">
+                    {t(title.toLowerCase().replace(' ', '_')) || title}
+                </span>
+                <div style={{ height: '16px', width: '1px', background: 'var(--border-light)', margin: '0 16px' }}></div>
+                <div className="time-box-premium">
+                    <Clock size={14} />
+                    <span>{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
             </div>
 
             <div className="header-right">
-                <div className="header-stats-premium">
-                    <div className="time-box-premium">
-                        <Clock size={14} />
-                        <span>{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                </div>
+                <LanguageSwitcher />
 
-                <div className="system-health-indicators" style={{ display: 'flex', gap: '8px' }}>
-                    <div title="Network Strength" style={{ color: 'var(--color-success)', opacity: 0.8 }}><Zap size={16} fill="currentColor" /></div>
-                    <div title="Security Status" style={{ color: 'var(--color-primary-cyan)', opacity: 0.8 }}><Shield size={16} fill="currentColor" /></div>
+                <div className="header-stats-premium">
+                    <div title="Network Strength" style={{ color: '#34D399', opacity: 0.8 }}><Zap size={16} fill="currentColor" /></div>
+                    <div title="Security Status" style={{ color: '#22D3EE', opacity: 0.8 }}><Shield size={16} fill="currentColor" /></div>
                 </div>
 
                 <button className="notification-btn-premium">
                     <Bell size={20} />
                     {alertCount > 0 && (
-                        <span className="badge-premium">{alertCount > 9 ? '9+' : alertCount}</span>
+                        <span className="badge-premium">
+                            {alertCount > 9 ? '9+' : alertCount}
+                        </span>
                     )}
                 </button>
 
-                <div className="header-user-premium" title="Farm Manager Profile">
-                    <span>FM</span>
+                <div className="header-user-premium">
+                    FM
                 </div>
             </div>
         </header>

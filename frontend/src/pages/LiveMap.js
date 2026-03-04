@@ -6,58 +6,46 @@ import L from 'leaflet';
 import 'leaflet-draw';
 import * as turf from '@turf/turf';
 import {
-    Search,
-    Filter,
     Maximize2,
     RefreshCw,
-    Thermometer,
-    Battery,
-    Activity,
-    MapPin,
     Crosshair,
-    Trash2,
     Eye,
     EyeOff,
-    Navigation,
-    ChevronRight,
-    Zap,
-    Heart,
-    Droplets
+    Navigation
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import './LiveMap.css';
 import GeofenceAlertNotification from '../components/GeofenceAlertNotification';
 import { MapScaleAndMeasure } from '../components/MapControls';
+import { useLanguageDirection } from '../hooks/useLanguageDirection';
+import KPIHud from '../components/layout/KPIHud';
+import CowContextCard from '../components/map/CowContextCard';
+import { useHealthAlerts } from '../hooks/useHealthAlerts';
+import AlertHistorySidebar from '../components/layout/AlertHistorySidebar';
 
 // Component to fit map bounds to fences and cattle
 function FitBounds({ fences, collars, hasInitialFit }) {
     const map = useMap();
 
     useEffect(() => {
-        // Only fit bounds on first load with data
         if (hasInitialFit.current) return;
         if (fences.length === 0 && collars.length === 0) return;
 
         const bounds = L.latLngBounds([]);
-
-        // Add fence positions to bounds
         fences.forEach(fence => {
             fence.positions.forEach(pos => {
                 bounds.extend(pos);
             });
         });
-
-        // Add collar positions to bounds
         collars.forEach(collar => {
             if (collar.latitude && collar.longitude) {
                 bounds.extend([collar.latitude, collar.longitude]);
             }
         });
 
-        // Fit map to bounds with padding
         if (bounds.isValid()) {
-            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+            map.fitBounds(bounds, { padding: [100, 100], maxZoom: 16 });
             hasInitialFit.current = true;
         }
     }, [map, fences, collars, hasInitialFit]);
@@ -75,103 +63,53 @@ L.Icon.Default.mergeOptions({
 
 const API_URL = 'http://localhost:3001';
 
-// Buffer zone configuration (in meters) - matches beaglebone_vm.py thresholds
 const BUFFER_ZONES = [
     { name: 'warning_1', outerDistance: 10, innerDistance: 15, color: '#EAB308', label: 'Warning 1 (10-15m)' },
     { name: 'warning_2', outerDistance: 5, innerDistance: 10, color: '#F97316', label: 'Warning 2 (5-10m)' },
     { name: 'breach', outerDistance: 0, innerDistance: 5, color: '#EF4444', label: 'Breach (<5m)' }
 ];
 
-/**
- * Create buffer zone ring polygons for a fence using Turf.js
- */
 const createBufferZones = (positions) => {
     if (!positions || positions.length < 3) return [];
-
     try {
         const coordinates = positions.map(pos => [pos[1], pos[0]]);
         if (coordinates[0][0] !== coordinates[coordinates.length - 1][0] ||
             coordinates[0][1] !== coordinates[coordinates.length - 1][1]) {
             coordinates.push(coordinates[0]);
         }
-
         const fencePolygon = turf.polygon([coordinates]);
         const bufferZones = [];
-
         BUFFER_ZONES.forEach(zone => {
             try {
-                let outerPoly;
-                if (zone.outerDistance === 0) {
-                    outerPoly = fencePolygon;
-                } else {
-                    outerPoly = turf.buffer(fencePolygon, -zone.outerDistance / 1000, { units: 'kilometers' });
-                }
-
+                let outerPoly = zone.outerDistance === 0 ? fencePolygon : turf.buffer(fencePolygon, -zone.outerDistance / 1000, { units: 'kilometers' });
                 const innerPoly = turf.buffer(fencePolygon, -zone.innerDistance / 1000, { units: 'kilometers' });
-
-                if (!outerPoly || !outerPoly.geometry || !outerPoly.geometry.coordinates) return;
-
-                const outerCoords = outerPoly.geometry.coordinates[0];
-                const outerPositions = outerCoords.map(coord => [coord[1], coord[0]]);
-
+                if (!outerPoly || !outerPoly.geometry) return;
+                const outerPositions = outerPoly.geometry.coordinates[0].map(coord => [coord[1], coord[0]]);
                 let innerPositions = null;
-                if (innerPoly && innerPoly.geometry && innerPoly.geometry.coordinates && innerPoly.geometry.coordinates[0]) {
-                    const innerCoords = innerPoly.geometry.coordinates[0];
-                    innerPositions = innerCoords.map(coord => [coord[1], coord[0]]);
+                if (innerPoly && innerPoly.geometry && innerPoly.geometry.coordinates[0]) {
+                    innerPositions = innerPoly.geometry.coordinates[0].map(coord => [coord[1], coord[0]]);
                 }
-
-                bufferZones.push({
-                    name: zone.name,
-                    outerPositions: outerPositions,
-                    innerPositions: innerPositions,
-                    color: zone.color,
-                    label: zone.label
-                });
-            } catch (e) {
-                console.debug(`Buffer zone ${zone.name} could not be created:`, e.message);
-            }
+                bufferZones.push({ name: zone.name, outerPositions, innerPositions, color: zone.color, label: zone.label });
+            } catch (e) { }
         });
-
         return bufferZones;
     } catch (error) {
-        console.error('Error creating buffer zones:', error);
         return [];
     }
 };
 
-// Create custom cattle markers
 const createCowIcon = (status, alertState = 'safe', direction = 'stationary') => {
-    const colors = {
-        healthy: '#10B981',
-        warning: '#F59E0B',
-        alert: '#EF4444'
-    };
-
+    const colors = { healthy: '#10B981', warning: '#F59E0B', alert: '#EF4444' };
     const isAlerting = alertState && alertState !== 'safe';
     const blinkClass = isAlerting ? 'blink-alert' : '';
-
     let alertIcon = '';
     if (alertState === 'warning_1') alertIcon = `<div class="alert-overlay speaker">🔊</div>`;
     else if (alertState === 'warning_2') alertIcon = `<div class="alert-overlay speaker-intense">🔊🔊</div>`;
     else if (alertState === 'breach') alertIcon = `<div class="alert-overlay shock">⚡</div>`;
 
-    let directionArrow = '';
-    if (direction === 'exiting') directionArrow = `<div class="direction-arrow exiting">↗️</div>`;
-    else if (direction === 'entering') directionArrow = `<div class="direction-arrow entering">↙️</div>`;
-    else if (direction === 'parallel') directionArrow = `<div class="direction-arrow parallel">↔️</div>`;
-
     return new L.DivIcon({
         className: 'custom-cattle-marker',
-        html: `
-      <div class="cattle-marker ${status} ${blinkClass}">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="${colors[status]}">
-          <circle cx="12" cy="12" r="10" fill="${colors[status]}" opacity="0.2"/>
-          <circle cx="12" cy="12" r="6" fill="${colors[status]}"/>
-        </svg>
-        ${alertIcon}
-        ${directionArrow}
-      </div>
-    `,
+        html: `<div class="cattle-marker ${status} ${blinkClass}"><svg width="32" height="32" viewBox="0 0 24 24" fill="${colors[status]}"><circle cx="12" cy="12" r="10" fill="${colors[status]}" opacity="0.2"/><circle cx="12" cy="12" r="6" fill="${colors[status]}"/></svg>${alertIcon}</div>`,
         iconSize: [32, 32],
         iconAnchor: [16, 16],
         popupAnchor: [0, -16]
@@ -194,76 +132,47 @@ const getAlertStateDisplay = (alertState) => {
     return states[alertState] || states['safe'];
 };
 
-// Draw Control Component
 function DrawControlNative({ onCreated }) {
     const map = useMap();
     const drawnItemsRef = useRef(null);
     const drawControlRef = useRef(null);
     const onCreatedRef = useRef(onCreated);
 
-    useEffect(() => {
-        onCreatedRef.current = onCreated;
-    }, [onCreated]);
-
+    useEffect(() => { onCreatedRef.current = onCreated; }, [onCreated]);
     useEffect(() => {
         if (!drawnItemsRef.current) {
             drawnItemsRef.current = new L.FeatureGroup();
             map.addLayer(drawnItemsRef.current);
         }
-
         if (!drawControlRef.current) {
             drawControlRef.current = new L.Control.Draw({
                 position: 'bottomright',
-                draw: {
-                    rectangle: false,
-                    circle: false,
-                    circlemarker: false,
-                    marker: false,
-                    polyline: false,
-                    polygon: {
-                        allowIntersection: false,
-                        showArea: true,
-                    },
-                },
-                edit: {
-                    featureGroup: drawnItemsRef.current,
-                },
+                draw: { rectangle: false, circle: false, circlemarker: false, marker: false, polyline: false, polygon: { allowIntersection: false, showArea: true } },
+                edit: { featureGroup: drawnItemsRef.current }
             });
             map.addControl(drawControlRef.current);
         }
-
         const onCreatedHandler = (e) => {
             drawnItemsRef.current.addLayer(e.layer);
-            if (onCreatedRef.current) {
-                onCreatedRef.current(e);
-            }
-        };
-
+            if (onCreatedRef.current) onCreatedRef.current(e);
+        }
         map.on(L.Draw.Event.CREATED, onCreatedHandler);
-
         return () => {
             map.off(L.Draw.Event.CREATED, onCreatedHandler);
-            if (drawControlRef.current) {
-                map.removeControl(drawControlRef.current);
-                drawControlRef.current = null;
-            }
-            if (drawnItemsRef.current) {
-                map.removeLayer(drawnItemsRef.current);
-                drawnItemsRef.current = null;
-            }
+            if (drawControlRef.current) { map.removeControl(drawControlRef.current); drawControlRef.current = null; }
+            if (drawnItemsRef.current) { map.removeLayer(drawnItemsRef.current); drawnItemsRef.current = null; }
         };
     }, [map]);
-
     return null;
 }
 
 function LiveMap() {
+    const { t, isRTL } = useLanguageDirection();
     const [searchParams] = useSearchParams();
     const [fences, setFences] = useState([]);
     const [collars, setCollars] = useState([]);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [selectedCollar, setSelectedCollar] = useState(null);
+    const [selectedCollarId, setSelectedCollarId] = useState(null);
+    const [isHealthSidebarOpen, setIsHealthSidebarOpen] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [showBufferZones, setShowBufferZones] = useState(true);
     const [positionHistory, setPositionHistory] = useState({});
@@ -272,6 +181,15 @@ function LiveMap() {
     const hasZoomedToCollar = useRef(false);
     const mapRef = useRef(null);
     const previousCollarsRef = useRef(null);
+    const { healthAlerts, summary: healthSummary, dismissAlert: dismissHealthAlert } = useHealthAlerts();
+
+    const totalCattle = collars.length;
+    const activeAlerts = collars.filter(c => c.alert_state && c.alert_state !== 'safe').length;
+    const healthScore = totalCattle > 0
+        ? Math.round((collars.filter(c => getCollarStatus(c) === 'healthy').length / totalCattle) * 100)
+        : 100;
+
+    const selectedCollarData = collars.find(c => c.collar_id === selectedCollarId);
 
     const fetchFences = async () => {
         try {
@@ -282,38 +200,26 @@ function LiveMap() {
                 positions: f.geo_json.coordinates[0].map(coord => [coord[1], coord[0]])
             }));
             setFences(formattedFences);
-        } catch (error) {
-            console.error("Error fetching fences", error);
-        }
+        } catch (error) { }
     };
 
     const fetchCollars = async () => {
         try {
             const response = await axios.get(`${API_URL}/api/collars/latest`);
             setCollars(response.data);
-        } catch (error) {
-            console.error("Error fetching latest collar data", error);
-        }
+        } catch (error) { }
     };
 
     const fetchPositionHistory = async () => {
         try {
             const response = await axios.get(`${API_URL}/api/collars/position-history?limit=50`);
             setPositionHistory(response.data);
-        } catch (error) {
-            console.error("Error fetching position history", error);
-        }
+        } catch (error) { }
     };
 
     useEffect(() => {
-        fetchFences();
-        fetchCollars();
-        fetchPositionHistory();
-
-        const interval = setInterval(() => {
-            fetchCollars();
-            fetchPositionHistory();
-        }, 5000);
+        fetchFences(); fetchCollars(); fetchPositionHistory();
+        const interval = setInterval(() => { fetchCollars(); fetchPositionHistory(); }, 5000);
         return () => clearInterval(interval);
     }, []);
 
@@ -323,7 +229,7 @@ function LiveMap() {
             const targetCollar = collars.find(c => c.collar_id === parseInt(collarId));
             if (targetCollar && targetCollar.latitude && targetCollar.longitude) {
                 mapRef.current.setView([targetCollar.latitude, targetCollar.longitude], 18);
-                setSelectedCollar(targetCollar.collar_id);
+                setSelectedCollarId(targetCollar.collar_id);
                 hasZoomedToCollar.current = true;
             }
         }
@@ -338,190 +244,41 @@ function LiveMap() {
                 geo_json: geojson.geometry
             });
             fetchFences();
-        } catch (error) {
-            console.error("Error saving fence", error);
-        }
+        } catch (error) { }
     };
 
-    const handleDeleteFence = async (id) => {
-        if (!window.confirm(`Delete this fence?`)) return;
-        try {
-            await axios.delete(`${API_URL}/api/fences/${id}`);
-            fetchFences();
-        } catch (error) {
-            console.error(`Error deleting fence ${id}`, error);
-        }
-    };
-
-    const handleDeleteCollar = async (collar) => {
-        if (!window.confirm(`Delete collar #${collar.collar_id}?`)) return;
-        try {
-            const collarsRes = await axios.get(`${API_URL}/api/collars`);
-            const collarRecord = collarsRes.data.find(c => c.id === collar.id);
-            if (!collarRecord) return;
-            await axios.delete(`${API_URL}/api/collars/${collarRecord.id}`);
-            fetchCollars();
-        } catch (error) {
-            console.error('Error deleting collar:', error);
-        }
-    };
-
-    const filteredCollars = collars.filter(collar => {
-        const matchesSearch = collar.collar_id.toString().includes(searchTerm) ||
-            (collar.cattle_name && collar.cattle_name.toLowerCase().includes(searchTerm.toLowerCase()));
-        const status = getCollarStatus(collar);
-        const matchesStatus = statusFilter === 'all' || status === statusFilter;
-        return matchesSearch && matchesStatus;
-    });
-
-    const mapCenter = collars.length > 0
-        ? [collars[0].latitude, collars[0].longitude]
-        : [36.7359, 3.34018];
+    const mapCenter = [36.7359, 3.34018];
 
     return (
-        <div className={`live-map-container ${isFullscreen ? 'fullscreen' : ''}`}>
+        <div className="relative w-full h-screen overflow-hidden bg-slate-900">
             <GeofenceAlertNotification
                 collars={collars}
                 previousCollarsRef={previousCollarsRef}
+                healthAlerts={healthAlerts}
+                onDismissHealth={dismissHealthAlert}
             />
 
-            <div className="map-sidebar">
-                <div className="card bg-glass">
-                    <div className="search-input-wrapper">
-                        <Search size={18} className="search-icon" />
-                        <input
-                            type="text"
-                            placeholder="Search units..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="search-input-field"
-                        />
-                    </div>
-                    <div className="filter-chips">
-                        <button
-                            className={`chip ${statusFilter === 'all' ? 'active' : ''}`}
-                            onClick={() => setStatusFilter('all')}
-                        >
-                            All ({collars.length})
-                        </button>
-                        <button
-                            className={`chip healthy ${statusFilter === 'healthy' ? 'active' : ''}`}
-                            onClick={() => setStatusFilter('healthy')}
-                        >
-                            Healthy
-                        </button>
-                        <button
-                            className={`chip warning ${statusFilter === 'warning' ? 'active' : ''}`}
-                            onClick={() => setStatusFilter('warning')}
-                        >
-                            Monitor
-                        </button>
-                        <button
-                            className={`chip alert ${statusFilter === 'alert' ? 'active' : ''}`}
-                            onClick={() => setStatusFilter('alert')}
-                        >
-                            Alert
-                        </button>
-                    </div>
-                </div>
+            <KPIHud
+                totalCattle={totalCattle}
+                activeAlerts={activeAlerts}
+                healthScore={healthScore}
+                healthAlertsCount={healthSummary.total}
+                onHealthAlertClick={() => setIsHealthSidebarOpen(true)}
+            />
 
-                <div className="card bg-glass cattle-list-card">
-                    <div className="card-header border-b border-light pb-sm mb-sm">
-                        <h3 className="card-title text-sm uppercase tracking-wider opacity-70">Fleet Status</h3>
-                        <span className="badge badge-info">{filteredCollars.length} Units</span>
-                    </div>
-                    <div className="cattle-list scrollbar-hidden">
-                        {filteredCollars.map(collar => {
-                            const status = getCollarStatus(collar);
-                            const isSelected = selectedCollar === collar.collar_id;
-                            return (
-                                <div
-                                    key={collar.collar_id}
-                                    className={`cattle-list-item ${isSelected ? 'selected' : ''}`}
-                                    onClick={() => {
-                                        setSelectedCollar(collar.collar_id);
-                                        if (mapRef.current) {
-                                            mapRef.current.setView([collar.latitude, collar.longitude], 18);
-                                        }
-                                    }}
-                                >
-                                    <div className={`status-indicator-dot ${status}`}></div>
-                                    <div className="cattle-list-info">
-                                        <div className="cattle-list-id">
-                                            {collar.cattle_name || `Collar #${collar.collar_id}`}
-                                        </div>
-                                        <div className="cattle-list-metrics">
-                                            <span><Thermometer size={10} /> {collar.body_temp?.toFixed(1)}°</span>
-                                            <span><Zap size={10} /> {collar.battery_voltage?.toFixed(1)}V</span>
-                                        </div>
-                                    </div>
-                                    <ChevronRight size={14} className="text-secondary opacity-50" />
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
+            <AlertHistorySidebar
+                alerts={healthAlerts}
+                isOpen={isHealthSidebarOpen}
+                onClose={() => setIsHealthSidebarOpen(false)}
+                onDismiss={dismissHealthAlert}
+            />
 
-                <div className="card bg-glass">
-                    <div className="card-header border-b border-light pb-sm mb-sm">
-                        <h3 className="card-title text-sm uppercase tracking-wider opacity-70">Active Perimeters</h3>
-                        <span className="badge badge-primary">{fences.length}</span>
-                    </div>
-                    <div className="fence-list scrollbar-hidden">
-                        {fences.map(fence => (
-                            <div key={fence.id} className="fence-list-item">
-                                <div className="fence-marker-cyan"></div>
-                                <div className="fence-list-name">{fence.name}</div>
-                                <button
-                                    className="btn-delete-sm"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDeleteFence(fence.id);
-                                    }}
-                                >
-                                    <Trash2 size={12} />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
+            {selectedCollarData && (
+                <CowContextCard collar={selectedCollarData} onClose={() => setSelectedCollarId(null)} />
+            )}
 
-            <div className="map-main">
-                <div className="map-overlay-controls">
-                    <div className="overlay-group">
-                        <button className="map-btn" onClick={fetchCollars} title="Refresh Fleet Data"><RefreshCw size={18} /></button>
-                        <button className="map-btn" onClick={() => {
-                            if (mapRef.current) {
-                                const bounds = L.latLngBounds([]);
-                                fences.forEach(f => f.positions.forEach(p => bounds.extend(p)));
-                                collars.forEach(c => bounds.extend([c.latitude, c.longitude]));
-                                if (bounds.isValid()) mapRef.current.fitBounds(bounds, { padding: [50, 50] });
-                            }
-                        }} title="Focus All Units"><Crosshair size={18} /></button>
-                    </div>
-                    <div className="overlay-group">
-                        <button className={`map-btn ${showBufferZones ? 'active' : ''}`} onClick={() => setShowBufferZones(!showBufferZones)} title="Toggle Zones">
-                            {showBufferZones ? <Eye size={18} /> : <EyeOff size={18} />}
-                        </button>
-                        <button className={`map-btn ${showTrails ? 'active' : ''}`} onClick={() => setShowTrails(!showTrails)} title="Toggle Trails"><Navigation size={18} /></button>
-                    </div>
-                    <button className="map-btn" onClick={() => setIsFullscreen(!isFullscreen)} title="Fullscreen mode"><Maximize2 size={18} /></button>
-                </div>
-
-                {showBufferZones && (
-                    <div className="map-legend-premium">
-                        <div className="legend-header">Zone Integrity</div>
-                        <div className="legend-items">
-                            <div className="legend-row"><span className="dot green"></span> Safe Area</div>
-                            <div className="legend-row"><span className="dot yellow"></span> Outer Buffer</div>
-                            <div className="legend-row"><span className="dot orange"></span> Critical Buffer</div>
-                            <div className="legend-row"><span className="dot red"></span> Breach Zone</div>
-                        </div>
-                    </div>
-                )}
-
-                <MapContainer center={mapCenter} zoom={15} scrollWheelZoom={true} ref={mapRef} className="map-engine" zoomControl={false}>
+            <div className="absolute inset-0 z-0">
+                <MapContainer center={mapCenter} zoom={15} scrollWheelZoom={true} ref={mapRef} className="w-full h-full" zoomControl={false}>
                     <ZoomControl position="topright" />
                     <LayersControl position="topright">
                         <LayersControl.BaseLayer checked name="Cartographic">
@@ -551,64 +308,58 @@ function LiveMap() {
                         ));
                     })}
 
-                    {showTrails && filteredCollars.map(collar => {
+                    {showTrails && collars.map(collar => {
                         const history = positionHistory[collar.collar_id];
                         if (!history || history.length < 2) return null;
                         const status = getCollarStatus(collar);
                         const trailColor = status === 'healthy' ? '#10B981' : status === 'warning' ? '#F59E0B' : '#EF4444';
                         const positions = history.map(h => [h.latitude, h.longitude]);
                         return (
-                            <React.Fragment key={`trail-${collar.collar_id}`}>
-                                <Polyline positions={positions} pathOptions={{ color: trailColor, weight: 2, opacity: 0.3, dashArray: '4, 8' }} />
-                                {history.slice(1, 10).map((pos, i) => (
-                                    <CircleMarker key={i} center={[pos.latitude, pos.longitude]} radius={3} pathOptions={{ color: trailColor, fillColor: trailColor, fillOpacity: 0.4 - (i * 0.04) }} />
-                                ))}
-                            </React.Fragment>
+                            <Polyline key={`trail-${collar.collar_id}`} positions={positions} pathOptions={{ color: trailColor, weight: 2, opacity: 0.3, dashArray: '4, 8' }} />
                         );
                     })}
 
-                    {filteredCollars.map(collar => {
+                    {collars.map(collar => {
                         const status = getCollarStatus(collar);
-                        const alertDisplay = getAlertStateDisplay(collar.alert_state);
                         return (
-                            <Marker key={collar.collar_id} position={[collar.latitude, collar.longitude]} icon={createCowIcon(status, collar.alert_state, collar.direction)}>
-                                <Popup className="premium-popup">
-                                    <div className="popup-container">
-                                        <div className="popup-header">
-                                            <span className="popup-id">{collar.cattle_name || `Collar #${collar.collar_id}`}</span>
-                                            <span className={`status-pill ${status}`}>{status}</span>
-                                        </div>
-                                        <div className="popup-grid">
-                                            <div className="popup-metric">
-                                                <div className="metric-label">Zone Status</div>
-                                                <div className="metric-value font-bold" style={{ color: alertDisplay.color }}>{alertDisplay.text}</div>
-                                            </div>
-                                            <div className="popup-metric">
-                                                <div className="metric-label">Movement</div>
-                                                <div className="metric-value capitalize">{collar.direction || 'Stationary'}</div>
-                                            </div>
-                                            <div className="popup-metric">
-                                                <div className="metric-label">Temperature</div>
-                                                <div className="metric-value">{collar.body_temp?.toFixed(1)}°C</div>
-                                            </div>
-                                            <div className="popup-metric">
-                                                <div className="metric-label">Battery</div>
-                                                <div className="metric-value">{collar.battery_voltage?.toFixed(1)}V</div>
-                                            </div>
-                                        </div>
-                                        <div className="popup-footer">
-                                            <span className="text-xs opacity-50">Last Update: {new Date(collar.timestamp).toLocaleTimeString()}</span>
-                                            <button className="btn-popup-action" onClick={() => handleDeleteCollar(collar)}>
-                                                <Trash2 size={12} /> Remove
-                                            </button>
-                                        </div>
-                                    </div>
-                                </Popup>
-                            </Marker>
+                            <Marker
+                                key={collar.id}
+                                position={[collar.latitude, collar.longitude]}
+                                icon={createCowIcon(status, collar.alert_state)}
+                                eventHandlers={{ click: () => setSelectedCollarId(collar.collar_id) }}
+                            />
                         );
                     })}
                 </MapContainer>
             </div>
+
+            <div className={`absolute top-24 z-10 flex flex-col gap-2 ${isRTL ? 'right-6' : 'left-6'}`}>
+                <div className="flex flex-col bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 p-1">
+                    <button className="p-3 text-white/60 hover:text-white transition-colors" onClick={fetchCollars} title="Refresh Fleet Data"><RefreshCw size={20} /></button>
+                    <button className="p-3 text-white/60 hover:text-white transition-colors" onClick={() => {
+                        if (mapRef.current) {
+                            const bounds = L.latLngBounds([]);
+                            fences.forEach(f => f.positions.forEach(p => bounds.extend(p)));
+                            collars.forEach(c => bounds.extend([c.latitude, c.longitude]));
+                            if (bounds.isValid()) mapRef.current.fitBounds(bounds, { padding: [100, 100] });
+                        }
+                    }} title="Focus All Units"><Crosshair size={20} /></button>
+                    <button className={`p-3 transition-colors ${showBufferZones ? 'text-emerald-400' : 'text-white/60 hover:text-white'}`} onClick={() => setShowBufferZones(!showBufferZones)} title="Toggle Zones">{showBufferZones ? <Eye size={20} /> : <EyeOff size={20} />}</button>
+                    <button className={`p-3 transition-colors ${showTrails ? 'text-emerald-400' : 'text-white/60 hover:text-white'}`} onClick={() => setShowTrails(!showTrails)} title="Toggle Trails"><Navigation size={20} /></button>
+                </div>
+            </div>
+
+            {showBufferZones && (
+                <div className={`absolute bottom-32 z-10 p-4 backdrop-blur-md bg-black/30 border border-white/10 rounded-2xl ${isRTL ? 'left-6' : 'right-6'}`}>
+                    <div className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-3 pb-2 border-b border-white/5">{t('herd_efficiency')}</div>
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-3 text-xs text-white/70"><div className="w-3 h-2 rounded-full bg-emerald-500"></div> Safe Area</div>
+                        <div className="flex items-center gap-3 text-xs text-white/70"><div className="w-3 h-2 rounded-full bg-amber-500"></div> Outer Buffer</div>
+                        <div className="flex items-center gap-3 text-xs text-white/70"><div className="w-3 h-2 rounded-full bg-orange-500"></div> Critical Buffer</div>
+                        <div className="flex items-center gap-3 text-xs text-white/70"><div className="w-3 h-2 rounded-full bg-rose-500"></div> Breach Zone</div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
