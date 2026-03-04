@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Progress Log
 
 ## 2025-12-10 - Buffer Zone Visualization & Bug Fixes
@@ -115,3 +116,10 @@
 ## Known Issues
 - Path with `&` character causes npm issues on Windows; use Docker.
 - Compose `version` key deprecation warning; safe to remove.
+=======
+# Progress Tracker - Virtual Fencing
+- [x] Cattle behavior simulator
+- [x] BLE Protocol definition
+- [x] Frontend dashboard scaffolding
+- [x] Speckit initialization
+>>>>>>> 0ccfd6f21030923368b12db59ce5db5409033a92

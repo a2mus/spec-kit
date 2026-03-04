@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 .header {
     position: fixed;
     top: 0;
@@ -115,4 +116,123 @@
     .header-time {
         display: none;
     }
+=======
+.header {
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: var(--sidebar-width);
+    height: var(--header-height);
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--space-lg);
+    z-index: 90;
+    transition: left var(--transition-normal);
+}
+
+.sidebar-collapsed~.main-content .header {
+    left: var(--sidebar-collapsed-width);
+}
+
+.header-left {
+    flex: 1;
+}
+
+.header-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.header-center {
+    flex: 1;
+    max-width: 400px;
+    margin: 0 var(--space-lg);
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.header-time {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    color: var(--text-secondary);
+    font-size: 14px;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-hover);
+    border-radius: var(--radius-sm);
+}
+
+.notification-btn {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+}
+
+.notification-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.notification-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    background: var(--color-alert);
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, var(--color-primary-blue) 0%, #1D4ED8 100%);
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+@media (max-width: 768px) {
+    .header {
+        left: 0;
+        padding: 0 var(--space-md);
+    }
+
+    .header-title {
+        font-size: 16px;
+    }
+
+    .header-time {
+        display: none;
+    }
+>>>>>>> 0ccfd6f21030923368b12db59ce5db5409033a92
 }

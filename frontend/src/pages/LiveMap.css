@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 .live-map-container {
     display: flex;
     gap: var(--space-lg);
@@ -603,4 +604,652 @@
     50% {
         box-shadow: 0 0 0 4px rgba(239, 68, 68, 0);
     }
+=======
+.live-map-container {
+    display: flex;
+    gap: var(--space-lg);
+    height: calc(100vh - var(--header-height) - var(--space-lg) * 2);
+}
+
+.live-map-container.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100vh;
+    z-index: 1000;
+    padding: 0;
+    gap: 0;
+}
+
+.live-map-container.fullscreen .map-sidebar {
+    display: none;
+}
+
+.live-map-container.fullscreen .map-main {
+    border-radius: 0;
+}
+
+/* Sidebar */
+.map-sidebar {
+    width: 320px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    overflow-y: auto;
+}
+
+.filter-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
+}
+
+.filter-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-full);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.filter-btn:hover {
+    border-color: var(--color-primary-blue);
+    color: var(--color-primary-blue);
+}
+
+.filter-btn.active {
+    background: var(--color-primary-blue);
+    border-color: var(--color-primary-blue);
+    color: white;
+}
+
+.filter-btn.healthy.active {
+    background: var(--color-success);
+    border-color: var(--color-success);
+}
+
+.filter-btn.warning.active {
+    background: var(--color-warning);
+    border-color: var(--color-warning);
+}
+
+.filter-btn.alert.active {
+    background: var(--color-alert);
+    border-color: var(--color-alert);
+}
+
+/* Cattle List */
+.cattle-list-card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.cattle-list {
+    flex: 1;
+    overflow-y: auto;
+    margin: calc(-1 * var(--space-lg));
+    margin-top: 0;
+    padding: 0 var(--space-lg) var(--space-lg);
+}
+
+.cattle-list-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    border-bottom: 1px solid var(--border-light);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.cattle-list-item:hover {
+    background: var(--bg-hover);
+}
+
+.cattle-list-item.selected {
+    background: rgba(59, 130, 246, 0.1);
+    border-left: 3px solid var(--color-primary-blue);
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.status-dot.healthy {
+    background: var(--color-success);
+}
+
+.status-dot.warning {
+    background: var(--color-warning);
+}
+
+.status-dot.alert {
+    background: var(--color-alert);
+}
+
+.cattle-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.cattle-id {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.cattle-meta {
+    display: flex;
+    gap: var(--space-md);
+    font-size: 11px;
+    color: var(--text-light);
+    margin-top: 2px;
+}
+
+.cattle-meta span {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+/* Fence List */
+.fence-list {
+    margin: calc(-1 * var(--space-lg));
+    margin-top: 0;
+}
+
+.fence-list-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md) var(--space-lg);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.fence-list-item:last-child {
+    border-bottom: none;
+}
+
+.fence-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+.fence-info {
+    flex: 1;
+}
+
+.fence-name {
+    font-weight: 500;
+    font-size: 14px;
+}
+
+/* Map Main */
+.map-main {
+    flex: 1;
+    position: relative;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+}
+
+.map-main .leaflet-container {
+    height: 100%;
+}
+
+.map-controls {
+    position: absolute;
+    bottom: var(--space-lg);
+    left: var(--space-md);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.map-control-btn {
+    width: 36px;
+    height: 36px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all var(--transition-fast);
+    box-shadow: var(--shadow-sm);
+}
+
+.map-control-btn:hover {
+    background: var(--bg-hover);
+    color: var(--color-primary-blue);
+}
+
+.map-control-btn.active {
+    background: var(--color-primary-blue);
+    color: white;
+    border-color: var(--color-primary-blue);
+}
+
+/* Buffer Zone Legend */
+.buffer-zone-legend {
+    position: absolute;
+    bottom: var(--space-lg);
+    right: var(--space-lg);
+    z-index: 1000;
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-light);
+    min-width: 160px;
+}
+
+.legend-title {
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-primary);
+    margin-bottom: var(--space-sm);
+    padding-bottom: var(--space-sm);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 4px 0;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.legend-color {
+    width: 16px;
+    height: 12px;
+    border-radius: 2px;
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+
+/* Move Leaflet draw controls down to avoid overlap with layer control */
+.map-main .leaflet-draw {
+    margin-top: 50px;
+}
+
+/* Style Leaflet draw buttons to match our design */
+.map-main .leaflet-draw-toolbar a {
+    background-color: var(--bg-card);
+    border-color: var(--border-light);
+}
+
+/* Custom Cattle Marker */
+.cattle-marker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cattle-marker.healthy svg circle:last-child {
+    fill: var(--color-success);
+}
+
+.cattle-marker.warning svg circle:last-child {
+    fill: var(--color-warning);
+}
+
+.cattle-marker.alert svg circle:last-child {
+    fill: var(--color-alert);
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .map-sidebar {
+        width: 280px;
+    }
+}
+
+@media (max-width: 768px) {
+    .live-map-container {
+        flex-direction: column;
+        height: auto;
+    }
+
+    .map-sidebar {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        overflow-x: auto;
+    }
+
+    .map-sidebar .card {
+        flex: 1;
+        min-width: 280px;
+    }
+
+    .map-main {
+        height: 50vh;
+    }
+}
+
+/* =============================================
+   GEOFENCE ALERT STYLES
+   ============================================= */
+
+/* Blinking animation for alerts */
+.cattle-marker.blink-alert {
+    animation: blink-alert 0.8s ease-in-out infinite;
+}
+
+@keyframes blink-alert {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.6;
+        transform: scale(1.15);
+    }
+}
+
+/* Alert overlay container */
+.cattle-marker {
+    position: relative;
+}
+
+.alert-overlay {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    font-size: 10px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    z-index: 10;
+    animation: overlay-bounce 0.5s ease-in-out infinite;
+}
+
+.alert-overlay.speaker {
+    background: linear-gradient(135deg, #FEF3C7, #FDE68A);
+    border: 1px solid #F59E0B;
+}
+
+.alert-overlay.speaker-intense {
+    background: linear-gradient(135deg, #FED7AA, #FDBA74);
+    border: 1px solid #F97316;
+    animation: overlay-shake 0.3s ease-in-out infinite;
+}
+
+.alert-overlay.shock {
+    background: linear-gradient(135deg, #FEE2E2, #FECACA);
+    border: 1px solid #EF4444;
+    animation: overlay-shock 0.2s ease-in-out infinite;
+}
+
+@keyframes overlay-bounce {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-2px);
+    }
+}
+
+@keyframes overlay-shake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-1px);
+    }
+
+    75% {
+        transform: translateX(1px);
+    }
+}
+
+@keyframes overlay-shock {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.8;
+        transform: scale(1.2);
+    }
+}
+
+/* Geofence alert notification toast */
+.geofence-alert-toast {
+    position: fixed;
+    top: var(--space-lg);
+    right: var(--space-lg);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    max-width: 400px;
+}
+
+.geofence-alert-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-md);
+    padding: var(--space-md) var(--space-lg);
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    border-left: 4px solid;
+    animation: slide-in 0.3s ease-out;
+}
+
+.geofence-alert-item.warning_1,
+.geofence-alert-item.warning {
+    border-left-color: #F59E0B;
+    background: linear-gradient(to right, rgba(245, 158, 11, 0.08), var(--bg-card));
+}
+
+.geofence-alert-item.warning_2 {
+    border-left-color: #F97316;
+    background: linear-gradient(to right, rgba(249, 115, 22, 0.08), var(--bg-card));
+}
+
+.geofence-alert-item.breach,
+.geofence-alert-item.critical {
+    border-left-color: #EF4444;
+    background: linear-gradient(to right, rgba(239, 68, 68, 0.1), var(--bg-card));
+}
+
+.geofence-alert-item.success {
+    border-left-color: #10B981;
+    background: linear-gradient(to right, rgba(16, 185, 129, 0.08), var(--bg-card));
+}
+
+.geofence-alert-item.outside {
+    border-left-color: #8B5CF6;
+    background: linear-gradient(to right, rgba(139, 92, 246, 0.12), var(--bg-card));
+    animation: slide-in 0.3s ease-out, pulse-outside 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-outside {
+    0%, 100% {
+        box-shadow: 0 4px 6px -1px rgba(139, 92, 246, 0.1), 0 2px 4px -1px rgba(139, 92, 246, 0.06);
+    }
+    50% {
+        box-shadow: 0 10px 15px -3px rgba(139, 92, 246, 0.2), 0 4px 6px -2px rgba(139, 92, 246, 0.1);
+    }
+}
+
+.geofence-alert-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.geofence-alert-content {
+    flex: 1;
+}
+
+.geofence-alert-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.geofence-alert-message {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.geofence-alert-close {
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: var(--text-light);
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.geofence-alert-close:hover {
+    color: var(--text-primary);
+}
+
+@keyframes slide-in {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* =============================================
+   DIRECTION ARROW STYLES
+   ============================================= */
+
+/* Direction arrow overlay on marker */
+.direction-arrow {
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    padding: 1px 3px;
+    border-radius: 4px;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    z-index: 5;
+}
+
+.direction-arrow.exiting {
+    background: linear-gradient(135deg, #FEE2E2, #FECACA);
+    border: 1px solid #EF4444;
+    animation: pulse-danger 1s ease-in-out infinite;
+}
+
+.direction-arrow.entering {
+    background: linear-gradient(135deg, #D1FAE5, #A7F3D0);
+    border: 1px solid #10B981;
+}
+
+.direction-arrow.parallel {
+    background: linear-gradient(135deg, #FEF3C7, #FDE68A);
+    border: 1px solid #F59E0B;
+}
+
+@keyframes pulse-danger {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+    }
+
+    50% {
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0);
+    }
+}
+
+/* =============================================
+   MEASURE TOOL STYLES
+   ============================================= */
+
+.leaflet-control-measure {
+    background: white;
+    border-radius: var(--radius-sm);
+}
+
+.leaflet-control-measure .measure-button {
+    border-radius: var(--radius-sm);
+}
+
+.leaflet-control-measure .measure-button:hover {
+    background: var(--bg-hover) !important;
+}
+
+.measure-tooltip {
+    background: white;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    box-shadow: var(--shadow-md);
+    font-family: inherit;
+}
+
+.measure-tooltip::before {
+    border-top-color: white;
+}
+
+/* Scale control styling */
+.leaflet-control-scale-line {
+    background: rgba(255, 255, 255, 0.9);
+    border: 2px solid #333;
+    border-top: none;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 5px;
+    text-align: center;
+>>>>>>> 0ccfd6f21030923368b12db59ce5db5409033a92
 }

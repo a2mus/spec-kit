@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Active Context
 
 ## Current Focus
@@ -70,3 +71,8 @@
    - Update `GeofenceAlertNotification.js` for outside detection
    - Finish `Dashboard.js` activity feed direction events
 5. **Verification testing**: Test graduated escalation, direction detection, return path suppression, offline caching, health stress override
+=======
+# Active Context - Virtual Fencing
+- **Current Focus**: Simulation of cattle activity and alert management.
+- **Status**: Core frontend components and simulator logic are established.
+>>>>>>> 0ccfd6f21030923368b12db59ce5db5409033a92

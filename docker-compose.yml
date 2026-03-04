@@ -1,9 +1,9 @@
-version: '3.8'
-
 services:
   database:
     image: timescale/timescaledb:latest-pg14
     container_name: cattle-db
+    networks:
+      - nexus-net
     environment:
       - POSTGRES_USER=user
       - POSTGRES_PASSWORD=password
@@ -22,6 +22,8 @@ services:
   backend:
     build: ./backend
     container_name: cattle-backend
+    networks:
+      - nexus-net
     ports:
       - "3001:3001"
     environment:
@@ -36,22 +38,26 @@ services:
   frontend:
     build: ./frontend
     container_name: cattle-frontend
+    networks:
+      - nexus-net
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_URL=http://localhost:3001
+      - REACT_APP_API_URL=https://nexus-dz.duckdns.org/vfence-api
       - CHOKIDAR_USEPOLLING=true
     depends_on:
       - backend
     volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
+      - ./frontend:/app
+      - /app/node_modules
     stdin_open: true
     tty: true
 
   simulator:
     build: ./simulator
     container_name: cattle-simulator
+    networks:
+      - nexus-net
     environment:
       - BACKEND_URL=http://backend:3001/api/collars/data
       - ACTIVITY_API_URL=http://backend:3001/api/imu-activity
@@ -63,3 +69,7 @@ services:
 
 volumes:
   db-data:
+
+networks:
+  nexus-net:
+    external: true
