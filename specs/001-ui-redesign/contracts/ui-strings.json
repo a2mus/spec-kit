@@ -1,0 +1,24 @@
+{
+    "ar": {
+        "dashboard": "لوحة التحكم",
+        "live_map": "الخريطة الحية",
+        "health_monitor": "مراقبة الصحة",
+        "fencing_zones": "مناطق السياج",
+        "cattle_roster": "قائمة الماشية",
+        "settings": "الإعدادات",
+        "total_cattle": "إجمالي الماشية",
+        "active_alerts": "تنبيهات نشطة",
+        "health_score": "درجة الصحة"
+    },
+    "fr": {
+        "dashboard": "Tableau de bord",
+        "live_map": "Carte en direct",
+        "health_monitor": "Suivi de santé",
+        "fencing_zones": "Zones de clôture",
+        "cattle_roster": "Registre du bétail",
+        "settings": "Paramètres",
+        "total_cattle": "Bétail total",
+        "active_alerts": "Alertes actives",
+        "health_score": "Score de santé"
+    }
+}
