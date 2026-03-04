@@ -8,7 +8,15 @@ import {
     Radio,
     Search,
     X,
-    MapPin
+    MapPin,
+    ChevronRight,
+    Filter,
+    Download,
+    MoreHorizontal,
+    Info,
+    Calendar,
+    Weight,
+    Stethoscope
 } from 'lucide-react';
 import './CattleRoster.css';
 
@@ -31,7 +39,6 @@ function CattleRoster() {
         notes: ''
     });
 
-    // Navigate to LiveMap with collar highlighted
     const handleLocate = (collarId) => {
         navigate(`/live-map?collar=${collarId}`);
     };
@@ -96,18 +103,16 @@ function CattleRoster() {
             fetchCattle();
         } catch (error) {
             console.error('Error saving cattle:', error);
-            alert('Failed to save. Please try again.');
         }
     };
 
     const handleDelete = async (id, name) => {
-        if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+        if (!window.confirm(`Delete "${name}" registry? This action is irreversible.`)) return;
         try {
             await axios.delete(`${API_URL}/api/cattle/${id}`);
             fetchCattle();
         } catch (error) {
             console.error('Error deleting cattle:', error);
-            alert('Failed to delete. Please try again.');
         }
     };
 
@@ -126,88 +131,98 @@ function CattleRoster() {
     }
 
     return (
-        <div className="cattle-roster">
-            {/* Header */}
-            <div className="page-header">
-                <div>
-                    <h2>Cattle Roster</h2>
-                    <p className="text-secondary">Manage your herd registry</p>
+        <div className="cattle-roster-premium">
+            <header className="page-header-premium">
+                <div className="header-info">
+                    <h2 className="title-gradient">Herd Registry</h2>
+                    <p className="subtitle">Comprehensive management of individual livestock data</p>
                 </div>
-                <button className="btn btn-primary" onClick={openAddModal}>
-                    <Plus size={18} /> Add Cattle
-                </button>
-            </div>
+                <div className="header-actions">
+                    <button className="btn-ghost-cyan">
+                        <Download size={18} /> Export
+                    </button>
+                    <button className="btn-premium" onClick={openAddModal}>
+                        <Plus size={18} /> Add Entry
+                    </button>
+                </div>
+            </header>
 
-            {/* Search */}
-            <div className="card">
-                <div className="search-input">
-                    <Search size={18} />
+            <div className="roster-controls">
+                <div className="search-bar-premium">
+                    <Search size={18} className="search-icon" />
                     <input
                         type="text"
-                        placeholder="Search by name, tag, or breed..."
+                        placeholder="Filter by identifier, breed or genetic tag..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
+                <button className="btn-filter">
+                    <Filter size={18} /> Filters
+                </button>
             </div>
 
-            {/* Table */}
-            <div className="card">
-                <div className="table-container">
-                    <table>
+            <div className="card-premium roster-table-card">
+                <div className="table-responsive">
+                    <table className="premium-table">
                         <thead>
                             <tr>
-                                <th>Name</th>
-                                <th>Tag Number</th>
-                                <th>Breed</th>
+                                <th>Identification</th>
+                                <th>Genetic / Breed</th>
                                 <th>Gender</th>
-                                <th>Birth Date</th>
-                                <th>Weight</th>
-                                <th>Collar Status</th>
-                                <th>Actions</th>
+                                <th>Biometrics</th>
+                                <th>Device Link</th>
+                                <th>Status</th>
+                                <th align="right">Management</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredCattle.map(cow => (
                                 <tr key={cow.id}>
-                                    <td><strong>{cow.name || 'Unnamed'}</strong></td>
-                                    <td>{cow.tag_number || '-'}</td>
-                                    <td>{cow.breed || '-'}</td>
-                                    <td>{cow.gender || '-'}</td>
-                                    <td>{cow.birth_date ? new Date(cow.birth_date).toLocaleDateString() : '-'}</td>
-                                    <td>{cow.weight_kg ? `${cow.weight_kg} kg` : '-'}</td>
+                                    <td>
+                                        <div className="id-cell">
+                                            <div className="avatar-placeholder">
+                                                {cow.name?.charAt(0) || 'C'}
+                                            </div>
+                                            <div className="name-group">
+                                                <span className="id-primary">{cow.name || 'Unnamed Cow'}</span>
+                                                <span className="id-secondary">{cow.tag_number || 'NO-TAG'}</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span className="breed-chip">{cow.breed || 'Undefined'}</span>
+                                    </td>
+                                    <td className="capitalize">{cow.gender || 'Unknown'}</td>
+                                    <td>
+                                        <div className="bio-metrics">
+                                            <span title="Weight"><Weight size={12} /> {cow.weight_kg ? `${cow.weight_kg} kg` : '--'}</span>
+                                            <span title="Age"><Calendar size={12} /> {cow.birth_date ? new Date(cow.birth_date).toLocaleDateString() : '--'}</span>
+                                        </div>
+                                    </td>
                                     <td>
                                         {cow.assigned_collar_id ? (
-                                            <span className="badge badge-success">
-                                                <Radio size={12} /> #{cow.assigned_collar_id}
-                                            </span>
+                                            <div className="collar-link active" onClick={() => handleLocate(cow.assigned_collar_id)}>
+                                                <Radio size={12} /> <span>#{cow.assigned_collar_id}</span>
+                                                <MapPin size={12} className="map-link-icon" />
+                                            </div>
                                         ) : (
-                                            <span className="badge badge-warning">No Collar</span>
+                                            <div className="collar-link unassigned">
+                                                <Radio size={12} /> <span>Unlinked</span>
+                                            </div>
                                         )}
                                     </td>
                                     <td>
-                                        <div className="action-buttons">
-                                            {cow.assigned_collar_id && (
-                                                <button
-                                                    className="btn btn-icon btn-primary"
-                                                    onClick={() => handleLocate(cow.assigned_collar_id)}
-                                                    title="Locate on map"
-                                                >
-                                                    <MapPin size={16} />
-                                                </button>
-                                            )}
-                                            <button
-                                                className="btn btn-icon btn-secondary"
-                                                onClick={() => openEditModal(cow)}
-                                                title="Edit"
-                                            >
+                                        <span className={`status-dot-pill ${cow.assigned_collar_id ? 'monitored' : 'offline'}`}>
+                                            {cow.assigned_collar_id ? 'Monitored' : 'No Signal'}
+                                        </span>
+                                    </td>
+                                    <td align="right">
+                                        <div className="row-actions">
+                                            <button className="btn-icon-row" onClick={() => openEditModal(cow)} title="Edit profile">
                                                 <Edit2 size={16} />
                                             </button>
-                                            <button
-                                                className="btn btn-icon btn-danger"
-                                                onClick={() => handleDelete(cow.id, cow.name)}
-                                                title="Delete"
-                                            >
+                                            <button className="btn-icon-row delete" onClick={() => handleDelete(cow.id, cow.name)} title="Remove entry">
                                                 <Trash2 size={16} />
                                             </button>
                                         </div>
@@ -216,10 +231,12 @@ function CattleRoster() {
                             ))}
                             {filteredCattle.length === 0 && (
                                 <tr>
-                                    <td colSpan="8" className="empty-table">
-                                        {cattle.length === 0
-                                            ? 'No cattle registered yet. Click "Add Cattle" to get started.'
-                                            : 'No cattle match your search.'}
+                                    <td colSpan="7">
+                                        <div className="empty-state-premium">
+                                            <Info size={40} className="empty-icon" />
+                                            <h4>No matching records found</h4>
+                                            <p>Try adjusting your filters or add a new livestock entry.</p>
+                                        </div>
                                     </td>
                                 </tr>
                             )}
@@ -228,61 +245,65 @@ function CattleRoster() {
                 </div>
             </div>
 
-            {/* Add/Edit Modal */}
             {showModal && (
-                <div className="modal-overlay">
-                    <div className="modal modal-lg">
-                        <div className="modal-header">
-                            <h3>{editingCattle ? 'Edit Cattle' : 'Add New Cattle'}</h3>
-                            <button className="btn btn-icon" onClick={() => setShowModal(false)}>
+                <div className="modal-overlay-premium">
+                    <div className="modal-premium modal-wide">
+                        <header className="modal-header">
+                            <div className="header-icon cyan">
+                                {editingCattle ? <Edit2 size={20} /> : <Plus size={20} />}
+                            </div>
+                            <div className="header-text">
+                                <h3>{editingCattle ? 'Update Livestock Registry' : 'New Livestock Entry'}</h3>
+                                <p>Fill in the biometric and identification data</p>
+                            </div>
+                            <button className="btn-close" onClick={() => setShowModal(false)}>
                                 <X size={20} />
                             </button>
-                        </div>
-                        <form onSubmit={handleSubmit}>
+                        </header>
+
+                        <form onSubmit={handleSubmit} className="premium-form">
                             <div className="form-grid">
-                                <div className="form-group">
-                                    <label>Name</label>
+                                <div className="input-group-premium">
+                                    <label>Display Name</label>
                                     <input
                                         type="text"
                                         name="name"
                                         value={formData.name}
                                         onChange={handleInputChange}
-                                        placeholder="e.g., Bessie"
+                                        placeholder="Identification name"
+                                        required
                                     />
                                 </div>
-                                <div className="form-group">
-                                    <label>Tag Number</label>
+                                <div className="input-group-premium">
+                                    <label>Visual Tag Number</label>
                                     <input
                                         type="text"
                                         name="tag_number"
                                         value={formData.tag_number}
                                         onChange={handleInputChange}
-                                        placeholder="e.g., TAG-001"
+                                        placeholder="e.g. BE-0192"
+                                        required
                                     />
                                 </div>
-                                <div className="form-group">
-                                    <label>Breed</label>
+                                <div className="input-group-premium">
+                                    <label>Genetic Breed</label>
                                     <input
                                         type="text"
                                         name="breed"
                                         value={formData.breed}
                                         onChange={handleInputChange}
-                                        placeholder="e.g., Holstein"
+                                        placeholder="e.g. Charolais"
                                     />
                                 </div>
-                                <div className="form-group">
-                                    <label>Gender</label>
-                                    <select
-                                        name="gender"
-                                        value={formData.gender}
-                                        onChange={handleInputChange}
-                                    >
-                                        <option value="">Select...</option>
-                                        <option value="female">Female</option>
-                                        <option value="male">Male</option>
+                                <div className="input-group-premium">
+                                    <label>Gender / Sex</label>
+                                    <select name="gender" value={formData.gender} onChange={handleInputChange}>
+                                        <option value="">Select gender</option>
+                                        <option value="female">Heifer / Cow</option>
+                                        <option value="male">Bull / Steer</option>
                                     </select>
                                 </div>
-                                <div className="form-group">
+                                <div className="input-group-premium">
                                     <label>Birth Date</label>
                                     <input
                                         type="date"
@@ -291,35 +312,37 @@ function CattleRoster() {
                                         onChange={handleInputChange}
                                     />
                                 </div>
-                                <div className="form-group">
-                                    <label>Weight (kg)</label>
+                                <div className="input-group-premium">
+                                    <label>Registration Weight (kg)</label>
                                     <input
                                         type="number"
                                         name="weight_kg"
                                         value={formData.weight_kg}
                                         onChange={handleInputChange}
-                                        placeholder="e.g., 450"
+                                        placeholder="0.00"
                                     />
                                 </div>
                             </div>
-                            <div className="form-group">
-                                <label>Notes</label>
+
+                            <div className="input-group-premium full-width">
+                                <label>Clinical / Descriptive Notes</label>
                                 <textarea
                                     name="notes"
                                     value={formData.notes}
                                     onChange={handleInputChange}
-                                    placeholder="Any additional notes..."
-                                    rows={3}
+                                    placeholder="Observe health conditions, distinctive marks..."
+                                    rows={4}
                                 />
                             </div>
-                            <div className="modal-actions">
-                                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>
-                                    Cancel
+
+                            <footer className="modal-footer">
+                                <button type="button" className="btn-ghost" onClick={() => setShowModal(false)}>
+                                    Discard Changes
                                 </button>
-                                <button type="submit" className="btn btn-primary">
-                                    {editingCattle ? 'Save Changes' : 'Add Cattle'}
+                                <button type="submit" className="btn-premium">
+                                    {editingCattle ? 'Save Data' : 'Initialize Registry'}
                                 </button>
-                            </div>
+                            </footer>
                         </form>
                     </div>
                 </div>

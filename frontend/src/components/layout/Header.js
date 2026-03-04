@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Search, Clock } from 'lucide-react';
+import { Bell, Search, Clock, Cpu, Shield, Zap } from 'lucide-react';
 import './Header.css';
 
 function Header({ title, alertCount = 0 }) {
@@ -8,7 +8,7 @@ function Header({ title, alertCount = 0 }) {
     useEffect(() => {
         const timer = setInterval(() => {
             setCurrentTime(new Date());
-        }, 60000); // Update every minute
+        }, 60000);
 
         return () => clearInterval(timer);
     }, []);
@@ -16,33 +16,40 @@ function Header({ title, alertCount = 0 }) {
     return (
         <header className="header">
             <div className="header-left">
-                <h1 className="header-title">{title}</h1>
+                <div className="header-title-premium">{title}</div>
             </div>
 
             <div className="header-center">
-                <div className="search-input">
-                    <Search size={18} />
+                <div className="search-premium">
+                    <Search size={18} className="search-icon-premium" />
                     <input
                         type="text"
-                        placeholder="Search cattle by ID..."
+                        placeholder="System-wide query: search cattle, nodes or events..."
                     />
                 </div>
             </div>
 
             <div className="header-right">
-                <div className="header-time">
-                    <Clock size={16} />
-                    <span>{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <div className="header-stats-premium">
+                    <div className="time-box-premium">
+                        <Clock size={14} />
+                        <span>{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
                 </div>
 
-                <button className="notification-btn">
+                <div className="system-health-indicators" style={{ display: 'flex', gap: '8px' }}>
+                    <div title="Network Strength" style={{ color: 'var(--color-success)', opacity: 0.8 }}><Zap size={16} fill="currentColor" /></div>
+                    <div title="Security Status" style={{ color: 'var(--color-primary-cyan)', opacity: 0.8 }}><Shield size={16} fill="currentColor" /></div>
+                </div>
+
+                <button className="notification-btn-premium">
                     <Bell size={20} />
                     {alertCount > 0 && (
-                        <span className="notification-badge">{alertCount > 9 ? '9+' : alertCount}</span>
+                        <span className="badge-premium">{alertCount > 9 ? '9+' : alertCount}</span>
                     )}
                 </button>
 
-                <div className="user-avatar">
+                <div className="header-user-premium" title="Farm Manager Profile">
                     <span>FM</span>
                 </div>
             </div>

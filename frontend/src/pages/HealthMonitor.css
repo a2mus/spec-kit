@@ -1,12 +1,7 @@
 .health-monitor {
     display: flex;
     flex-direction: column;
-    gap: var(--space-lg);
-}
-
-.btn-sm {
-    padding: 6px 12px;
-    font-size: 12px;
+    gap: var(--space-xl);
 }
 
 /* Status Indicator */
@@ -19,30 +14,30 @@
 
 .status-indicator.healthy {
     background: var(--color-success);
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.15);
 }
 
 .status-indicator.warning {
     background: var(--color-warning);
-    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
-    animation: pulse-warning 2s infinite;
+    box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.15);
+    animation: pulse-warning 2.5s infinite;
 }
 
 .status-indicator.alert {
     background: var(--color-alert);
-    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
-    animation: pulse-alert 1s infinite;
+    box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
+    animation: pulse-alert 1.5s infinite;
 }
 
 @keyframes pulse-warning {
 
     0%,
     100% {
-        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+        box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.15);
     }
 
     50% {
-        box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.1);
+        box-shadow: 0 0 0 8px rgba(217, 119, 6, 0.1);
     }
 }
 
@@ -50,138 +45,165 @@
 
     0%,
     100% {
-        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+        box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
     }
 
     50% {
-        box-shadow: 0 0 0 8px rgba(239, 68, 68, 0.1);
+        box-shadow: 0 0 0 12px rgba(220, 38, 38, 0.1);
     }
 }
 
 /* Issue Tags */
 .issue-tag {
-    display: inline-block;
-    padding: 2px 8px;
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
     margin: 2px;
     font-size: 11px;
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--color-alert);
+    font-weight: 600;
+    background: rgba(220, 38, 38, 0.1);
+    color: #ef4444;
     border-radius: var(--radius-full);
+    border: 1px solid rgba(220, 38, 38, 0.1);
 }
 
 /* Vitals Cell */
 .vitals-cell {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-md);
-    font-size: 12px;
+    font-size: 13px;
+    color: var(--text-secondary);
 }
 
 .vitals-cell span {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 4px 8px;
+    border-radius: 6px;
 }
 
-/* Vital Card - Enhanced */
+/* Vital Card - Premium Look */
+.vitals-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--space-lg);
+}
+
 .vital-card {
     background: var(--bg-card);
     border: 1px solid var(--border-light);
-    border-radius: var(--radius-md);
-    padding: var(--space-md);
-    cursor: pointer;
-    transition: all var(--transition-fast);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    transition: all var(--transition-normal);
+    position: relative;
+    overflow: hidden;
 }
 
 .vital-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+    transform: translateY(-4px);
+    border-color: var(--border-medium);
+    box-shadow: var(--shadow-lg);
 }
 
-.vital-card.status-warning {
-    border-color: var(--color-warning);
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, transparent 100%);
+.vital-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
 }
 
-.vital-card.status-alert {
-    border-color: var(--color-alert);
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, transparent 100%);
+.vital-card.status-healthy::before {
+    background: var(--color-success);
+}
+
+.vital-card.status-warning::before {
+    background: var(--color-warning);
+}
+
+.vital-card.status-alert::before {
+    background: var(--color-alert);
 }
 
 .vital-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--space-md);
-    padding-bottom: var(--space-sm);
-    border-bottom: 1px solid var(--border-light);
+    margin-bottom: var(--space-lg);
 }
 
 .vital-id {
-    font-weight: 600;
-    font-size: 14px;
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--text-primary);
 }
 
 .vital-metrics-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: var(--space-md);
+    gap: var(--space-lg);
 }
 
 .metric-item {
     display: flex;
-    align-items: flex-start;
-    gap: var(--space-sm);
+    align-items: center;
+    gap: var(--space-md);
 }
 
 .metric-icon {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bg-hover);
-    border-radius: var(--radius-sm);
-    color: var(--text-secondary);
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    color: var(--color-primary-blue);
+    flex-shrink: 0;
+}
+
+.vital-card.status-alert .metric-icon {
+    color: var(--color-alert);
+}
+
+.vital-card.status-warning .metric-icon {
+    color: var(--color-warning);
 }
 
 .metric-data {
     flex: 1;
+    min-width: 0;
 }
 
 .metric-value {
     font-size: 18px;
-    font-weight: 600;
-    line-height: 1.2;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.1;
 }
 
 .metric-label {
     font-size: 11px;
-    color: var(--text-light);
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .vital-footer {
-    margin-top: var(--space-md);
-    padding-top: var(--space-sm);
+    margin-top: var(--space-lg);
+    padding-top: var(--space-md);
     border-top: 1px solid var(--border-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     font-size: 12px;
-    color: var(--text-secondary);
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .vitals-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .vital-metrics-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-@media (max-width: 480px) {
-    .vital-metrics-grid {
-        grid-template-columns: 1fr;
-    }
+    color: var(--text-light);
 }
 
 /* Filter Components */
@@ -189,45 +211,74 @@
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-    color: var(--text-secondary);
 }
 
 .filter-select {
-    padding: 6px 12px;
-    font-size: 13px;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-weight: 500;
     border: 1px solid var(--border-light);
-    border-radius: var(--radius-sm);
-    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    background: var(--bg-sidebar);
     color: var(--text-primary);
     cursor: pointer;
+    transition: all var(--transition-fast);
 }
 
 .filter-select:focus {
     outline: none;
-    border-color: var(--color-primary);
+    border-color: var(--color-primary-blue);
+    background: var(--bg-card);
 }
 
 .search-input-sm {
-    padding: 6px 12px;
-    font-size: 13px;
+    padding: 8px 12px;
+    font-size: 14px;
     border: 1px solid var(--border-light);
-    border-radius: var(--radius-sm);
-    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    background: var(--bg-sidebar);
     color: var(--text-primary);
-    width: 160px;
+    width: 200px;
+    transition: all var(--transition-fast);
 }
 
 .search-input-sm:focus {
     outline: none;
-    border-color: var(--color-primary);
+    border-color: var(--color-primary-blue);
+    background: var(--bg-card);
 }
 
 /* Vital Card Locate Button */
 .vital-locate-btn {
-    margin-top: var(--space-md);
+    margin-top: var(--space-lg);
     width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-xs);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .grid-cols-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .vitals-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-md);
+    }
+
+    .search-input-sm {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .grid-cols-4 {
+        grid-template-columns: 1fr;
+    }
 }

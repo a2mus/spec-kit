@@ -9,18 +9,19 @@ import {
     ChevronLeft,
     ChevronRight,
     Users,
-    Radio
+    Radio,
+    Shield
 } from 'lucide-react';
 import './Sidebar.css';
 
 const navItems = [
-    { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/live-map', icon: MapPin, label: 'Live Map' },
-    { path: '/health', icon: Heart, label: 'Health Monitor' },
-    { path: '/fencing', icon: Fence, label: 'Fencing Zones' },
-    { path: '/cattle', icon: Users, label: 'Cattle Roster' },
-    { path: '/collars', icon: Radio, label: 'Collars' },
-    { path: '/settings', icon: Settings, label: 'Settings' },
+    { path: '/', icon: LayoutDashboard, label: 'Control Center' },
+    { path: '/live-map', icon: MapPin, label: 'Geospatial Map' },
+    { path: '/health', icon: Heart, label: 'Biometrics' },
+    { path: '/fencing', icon: Fence, label: 'Virtual Fencing' },
+    { path: '/cattle', icon: Users, label: 'Herd Registry' },
+    { path: '/collars', icon: Radio, label: 'Hardware Units' },
+    { path: '/settings', icon: Settings, label: 'System Prefs' },
 ];
 
 function Sidebar({ collapsed, onToggle }) {
@@ -28,8 +29,10 @@ function Sidebar({ collapsed, onToggle }) {
         <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
             <div className="sidebar-header">
                 <div className="logo">
-                    {!collapsed && <span className="logo-text">CattleGuard</span>}
-                    {collapsed && <span className="logo-icon">CG</span>}
+                    <div className="logo-icon-premium">
+                        <Shield size={20} fill="currentColor" />
+                    </div>
+                    {!collapsed && <span className="logo-text-premium">CattleGuard</span>}
                 </div>
             </div>
 
@@ -38,7 +41,7 @@ function Sidebar({ collapsed, onToggle }) {
                     <NavLink
                         key={path}
                         to={path}
-                        className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                        className={({ isActive }) => `nav-item-premium ${isActive ? 'active' : ''}`}
                     >
                         <Icon size={20} />
                         {!collapsed && <span className="nav-label">{label}</span>}
@@ -46,9 +49,21 @@ function Sidebar({ collapsed, onToggle }) {
                 ))}
             </nav>
 
-            <button className="sidebar-toggle" onClick={onToggle}>
-                {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            <button className="sidebar-toggle-premium" onClick={onToggle} title={collapsed ? "Expand" : "Collapse"}>
+                {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
             </button>
+
+            {!collapsed && (
+                <div className="sidebar-footer">
+                    <div className="user-profile-compact">
+                        <div className="user-avatar"></div>
+                        <div className="user-info">
+                            <div className="user-name" style={{ fontSize: '12px', fontWeight: '700' }}>Admin User</div>
+                            <div className="user-role" style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Farm Manager</div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </aside>
     );
 }

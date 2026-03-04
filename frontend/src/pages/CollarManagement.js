@@ -10,12 +10,17 @@ import {
     CheckCircle,
     Search,
     Trash2,
-    MapPin
+    MapPin,
+    Wifi,
+    Battery,
+    Cpu,
+    ArrowRight,
+    X,
+    ShieldAlert
 } from 'lucide-react';
 import './CollarManagement.css';
 
 const API_URL = 'http://localhost:3001';
-const UNASSIGNED_COLLAR_ID = 9999;
 
 function CollarManagement() {
     const navigate = useNavigate();
@@ -26,7 +31,6 @@ function CollarManagement() {
     const [selectedCollar, setSelectedCollar] = useState(null);
     const [selectedCattleId, setSelectedCattleId] = useState('');
 
-    // Navigate to LiveMap with collar highlighted
     const handleLocate = (collarId) => {
         navigate(`/live-map?collar=${collarId}`);
     };
@@ -69,42 +73,37 @@ function CollarManagement() {
             fetchData();
         } catch (error) {
             console.error('Error assigning collar:', error);
-            alert('Failed to assign collar. Please try again.');
         }
     };
 
     const handleUnassign = async (collar) => {
-        if (!window.confirm(`Unassign collar #${collar.collar_id} from ${collar.cattle_name}?`)) return;
+        if (!window.confirm(`Dissociate hardware unit #${collar.collar_id} from ${collar.cattle_name}?`)) return;
 
         try {
             await axios.patch(`${API_URL}/api/collars/${collar.id}/unassign`);
             fetchData();
         } catch (error) {
             console.error('Error unassigning collar:', error);
-            alert('Failed to unassign collar. Please try again.');
         }
     };
 
     const handleDeleteCollar = async (collar) => {
-        if (!window.confirm(`Delete collar #${collar.collar_id}? This action cannot be undone.`)) return;
+        if (!window.confirm(`Decommission hardware unit #${collar.collar_id}? This action is permanent.`)) return;
 
         try {
             await axios.delete(`${API_URL}/api/collars/${collar.id}`);
             fetchData();
         } catch (error) {
             console.error('Error deleting collar:', error);
-            alert('Failed to delete collar. Please try again.');
         }
     };
 
-    // Separate collars by status
     const discoveredCollars = collars.filter(c =>
         c.status === 'discovered' || c.status === 'unassigned'
     );
     const activeCollars = collars.filter(c => c.status === 'active');
     const inactiveCollars = collars.filter(c => c.status === 'inactive');
 
-    // Get unassigned cattle (no collar linked)
     const unassignedCattle = cattle.filter(c => !c.assigned_collar_id);
 
     if (loading) {
@@ -116,275 +115,229 @@ function CollarManagement() {
     }
 
     return (
-        <div className="collar-management">
-            {/* Header */}
-            <div className="page-header">
-                <div>
-                    <h2>Collar Management</h2>
-                    <p className="text-secondary">Discover and assign collars to your cattle</p>
+        <div className="collar-management-premium">
+            <header className="page-header-premium">
+                <div className="header-info">
+                    <h2 className="title-gradient">Hardware Ecosystem</h2>
+                    <p className="subtitle">Lifecycle management for sensory collars and edge nodes</p>
                 </div>
-            </div>
+            </header>
 
-            {/* Stats */}
-            <div className="grid grid-cols-4">
-                <div className="stat-card blue">
-                    <div className="stat-card-icon"><Radio size={24} /></div>
-                    <div className="stat-card-value">{collars.length}</div>
-                    <div className="stat-card-label">Total Collars</div>
-                </div>
-                <div className="stat-card amber">
-                    <div className="stat-card-icon"><AlertCircle size={24} /></div>
-                    <div className="stat-card-value">{discoveredCollars.length}</div>
-                    <div className="stat-card-label">Awaiting Assignment</div>
-                </div>
-                <div className="stat-card green">
-                    <div className="stat-card-icon"><CheckCircle size={24} /></div>
-                    <div className="stat-card-value">{activeCollars.length}</div>
-                    <div className="stat-card-label">Active</div>
-                </div>
-                <div className="stat-card gray">
-                    <div className="stat-card-icon"><Unlink size={24} /></div>
-                    <div className="stat-card-value">{inactiveCollars.length}</div>
-                    <div className="stat-card-label">Inactive</div>
-                </div>
-            </div>
-
-            {/* Discovered Collars */}
-            {discoveredCollars.length > 0 && (
-                <div className="card highlight-card">
-                    <div className="card-header">
-                        <h3 className="card-title">
-                            <AlertCircle size={18} className="text-warning" />
-                            Newly Discovered Collars
-                        </h3>
-                        <span className="badge badge-warning">{discoveredCollars.length} pending</span>
+            <div className="stats-grid-premium">
+                <div className="stat-card-premium cyan">
+                    <div className="stat-icon"><Cpu size={24} /></div>
+                    <div className="stat-details">
+                        <span className="stat-value">{collars.length}</span>
+                        <span className="stat-label">Total Units</span>
                     </div>
-                    <p className="text-secondary mb-md">
-                        These collars have been detected but not yet assigned to any cattle.
-                        Click "Assign" to link them.
-                    </p>
-                    <div className="collar-grid">
+                </div>
+                <div className="stat-card-premium amber">
+                    <div className="stat-icon"><Wifi size={24} /></div>
+                    <div className="stat-details">
+                        <span className="stat-value">{discoveredCollars.length}</span>
+                        <span className="stat-label">Pending Sync</span>
+                    </div>
+                </div>
+                <div className="stat-card-premium green">
+                    <div className="stat-icon"><CheckCircle size={24} /></div>
+                    <div className="stat-details">
+                        <span className="stat-value">{activeCollars.length}</span>
+                        <span className="stat-label">Operational</span>
+                    </div>
+                </div>
+                <div className="stat-card-premium gray">
+                    <div className="stat-icon"><Battery size={24} className="opacity-50" /></div>
+                    <div className="stat-details">
+                        <span className="stat-value">{inactiveCollars.length}</span>
+                        <span className="stat-label">Offline / Error</span>
+                    </div>
+                </div>
+            </div>
+
+            {discoveredCollars.length > 0 && (
+                <section className="section-premium highlighted">
+                    <div className="section-header-premium">
+                        <div className="header-title">
+                            <ShieldAlert size={20} className="text-amber" />
+                            <h3>Discovered Edge Nodes</h3>
+                        </div>
+                        <span className="badge-amber">{discoveredCollars.length} Unassigned</span>
+                    </div>
+                    <div className="nodes-grid">
                         {discoveredCollars.map(collar => (
-                            <div key={collar.id} className="collar-card discovered">
-                                <div className="collar-icon">
-                                    <Radio size={24} />
-                                </div>
-                                <div className="collar-info">
-                                    <div className="collar-id">Collar #{collar.collar_id}</div>
-                                    <div className="collar-meta">
+                            <div key={collar.id} className="node-card-premium discovered">
+                                <div className="node-status-indicator"></div>
+                                <div className="node-info">
+                                    <div className="node-id">Node ID: #{collar.collar_id}</div>
+                                    <div className="node-meta">
                                         <Clock size={12} />
-                                        {collar.last_seen
-                                            ? `Last seen: ${new Date(collar.last_seen).toLocaleString()}`
-                                            : 'Never connected'}
+                                        <span>{collar.last_seen ? `Detected ${new Date(collar.last_seen).toLocaleTimeString()}` : 'First Discovery'}</span>
                                     </div>
                                 </div>
-                                <button
-                                    className="btn btn-primary"
-                                    onClick={() => openAssignModal(collar)}
-                                >
-                                    <Link2 size={16} /> Assign
-                                </button>
-                                <button
-                                    className="btn btn-danger btn-icon"
-                                    onClick={() => handleDeleteCollar(collar)}
-                                    title="Delete collar"
-                                >
-                                    <Trash2 size={16} />
-                                </button>
+                                <div className="node-actions-compact">
+                                    <button className="btn-premium-sm" onClick={() => openAssignModal(collar)}>
+                                        <Link2 size={14} /> Link Cattle
+                                    </button>
+                                    <button className="btn-ghost-danger-sm" onClick={() => handleDeleteCollar(collar)}>
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
-                </div>
+                </section>
             )}
 
-            {/* Active Collars */}
-            <div className="card">
-                <div className="card-header">
-                    <h3 className="card-title">Active Collars</h3>
-                    <span className="badge badge-success">{activeCollars.length}</span>
+            <div className="card-premium operational-roster">
+                <div className="card-header-premium">
+                    <div className="header-icon-group">
+                        <CheckCircle size={18} className="text-success" />
+                        <h3 className="card-title">Operational Surface Units</h3>
+                    </div>
+                    <div className="header-badges">
+                        <span className="badge-cyan">{activeCollars.length} Monitored</span>
+                    </div>
                 </div>
-                {activeCollars.length > 0 ? (
-                    <div className="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Collar ID</th>
-                                    <th>Assigned To</th>
-                                    <th>Tag Number</th>
-                                    <th>Status</th>
-                                    <th>Last Seen</th>
-                                    <th>Actions</th>
+
+                <div className="table-responsive">
+                    <table className="premium-table">
+                        <thead>
+                            <tr>
+                                <th>Unit Identity</th>
+                                <th>Assigned Host</th>
+                                <th>Network Status</th>
+                                <th>Telemetry Sync</th>
+                                <th align="right">Command Console</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {activeCollars.map(collar => (
+                                <tr key={collar.id}>
+                                    <td>
+                                        <div className="unit-id-group">
+                                            <span className="unit-primary">Unit #{collar.collar_id}</span>
+                                            {collar.pending_new_id && <span className="id-migration">Re-ID in progress: #{collar.pending_new_id}</span>}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div className="host-link">
+                                            <span className="host-name">{collar.cattle_name || 'Generic Host'}</span>
+                                            <span className="host-tag">{collar.tag_number || 'IDENT-NULL'}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div className="network-status active">
+                                            <div className="pulse-dot"></div>
+                                            <span>Operational</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div className="telemetry-meta">
+                                            <Clock size={12} className="opacity-50" />
+                                            <span>{collar.last_seen ? new Date(collar.last_seen).toLocaleString() : 'Never'}</span>
+                                        </div>
+                                    </td>
+                                    <td align="right">
+                                        <div className="console-actions">
+                                            <button className="console-btn primary" onClick={() => handleLocate(collar.collar_id)} title="Ping on map">
+                                                <MapPin size={16} /> Locate
+                                            </button>
+                                            <button className="console-btn secondary" onClick={() => handleUnassign(collar)} title="Break link">
+                                                <Unlink size={16} /> Unlink
+                                            </button>
+                                            <button className="console-btn danger" onClick={() => handleDeleteCollar(collar)} title="Decommission">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {activeCollars.map(collar => (
-                                    <tr key={collar.id}>
-                                        <td>
-                                            <strong>#{collar.collar_id}</strong>
-                                            {collar.pending_new_id && (
-                                                <span className="badge badge-info ml-sm">
-                                                    → #{collar.pending_new_id}
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td>{collar.cattle_name || 'Unknown'}</td>
-                                        <td>{collar.tag_number || '-'}</td>
-                                        <td>
-                                            <span className="badge badge-success">Active</span>
-                                        </td>
-                                        <td>
-                                            {collar.last_seen
-                                                ? new Date(collar.last_seen).toLocaleString()
-                                                : '-'}
-                                        </td>
-                                        <td>
-                                            <button
-                                                className="btn btn-primary btn-sm"
-                                                onClick={() => handleLocate(collar.collar_id)}
-                                                title="Locate on map"
-                                            >
-                                                <MapPin size={14} /> Locate
-                                            </button>
-                                            <button
-                                                className="btn btn-secondary btn-sm"
-                                                onClick={() => handleUnassign(collar)}
-                                                style={{ marginLeft: '8px' }}
-                                            >
-                                                <Unlink size={14} /> Unassign
-                                            </button>
-                                            <button
-                                                className="btn btn-danger btn-sm btn-icon"
-                                                onClick={() => handleDeleteCollar(collar)}
-                                                title="Delete collar"
-                                                style={{ marginLeft: '8px' }}
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                ) : (
-                    <div className="empty-state">
-                        <Radio size={32} />
-                        <p>No active collars yet.</p>
-                        <p className="text-secondary">Assign discovered collars to get started.</p>
-                    </div>
-                )}
+                            ))}
+                            {activeCollars.length === 0 && (
+                                <tr>
+                                    <td colSpan="5">
+                                        <div className="empty-state-premium">
+                                            <Wifi size={40} className="empty-icon" />
+                                            <h4>No Operational Units Detected</h4>
+                                            <p>Scan for nearby edge nodes to begin telemetry streaming.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            {/* Inactive Collars */}
-            {inactiveCollars.length > 0 && (
-                <div className="card">
-                    <div className="card-header">
-                        <h3 className="card-title">Inactive Collars</h3>
-                        <span className="badge">{inactiveCollars.length}</span>
-                    </div>
-                    <div className="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Collar ID</th>
-                                    <th>Last Seen</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {inactiveCollars.map(collar => (
-                                    <tr key={collar.id}>
-                                        <td><strong>#{collar.collar_id}</strong></td>
-                                        <td>
-                                            {collar.last_seen
-                                                ? new Date(collar.last_seen).toLocaleString()
-                                                : 'Never'}
-                                        </td>
-                                        <td>
-                                            <button
-                                                className="btn btn-primary btn-sm"
-                                                onClick={() => openAssignModal(collar)}
-                                            >
-                                                <Link2 size={14} /> Reassign
-                                            </button>
-                                            <button
-                                                className="btn btn-danger btn-sm btn-icon"
-                                                onClick={() => handleDeleteCollar(collar)}
-                                                title="Delete collar"
-                                                style={{ marginLeft: '8px' }}
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
-
-            {/* Assignment Modal */}
             {showAssignModal && (
-                <div className="modal-overlay">
-                    <div className="modal">
-                        <h3>Assign Collar #{selectedCollar?.collar_id}</h3>
-                        <p className="text-secondary mb-lg">
-                            Select a cattle to assign this collar to.
-                            The collar will receive a new unique ID on next sync.
-                        </p>
-
-                        {unassignedCattle.length > 0 ? (
-                            <>
-                                <div className="form-group">
-                                    <label>Select Cattle</label>
-                                    <select
-                                        value={selectedCattleId}
-                                        onChange={(e) => setSelectedCattleId(e.target.value)}
-                                    >
-                                        <option value="">Choose...</option>
-                                        {unassignedCattle.map(c => (
-                                            <option key={c.id} value={c.id}>
-                                                {c.name || 'Unnamed'} {c.tag_number ? `(${c.tag_number})` : ''}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="modal-actions">
-                                    <button
-                                        className="btn btn-secondary"
-                                        onClick={() => setShowAssignModal(false)}
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        className="btn btn-primary"
-                                        onClick={handleAssign}
-                                        disabled={!selectedCattleId}
-                                    >
-                                        Assign Collar
-                                    </button>
-                                </div>
-                            </>
-                        ) : (
-                            <div className="empty-state">
-                                <p>No unassigned cattle available.</p>
-                                <p className="text-secondary">
-                                    Add cattle in the Cattle Roster first, or unassign existing collars.
-                                </p>
-                                <button
-                                    className="btn btn-secondary mt-md"
-                                    onClick={() => setShowAssignModal(false)}
-                                >
-                                    Close
-                                </button>
+                <div className="modal-overlay-premium">
+                    <div className="modal-premium">
+                        <header className="modal-header">
+                            <div className="header-icon cyan">
+                                <Link2 size={24} />
                             </div>
-                        )}
+                            <div className="header-text">
+                                <h3>Hardware Link Protocol</h3>
+                                <p>Binding Unit #{selectedCollar?.collar_id} to livestock</p>
+                            </div>
+                            <button className="btn-close" onClick={() => setShowAssignModal(false)}>
+                                <X size={20} />
+                            </button>
+                        </header>
+
+                        <div className="modal-body-premium">
+                            {unassignedCattle.length > 0 ? (
+                                <>
+                                    <div className="input-group-premium full-width">
+                                        <label>Target Livestock Host</label>
+                                        <select
+                                            value={selectedCattleId}
+                                            onChange={(e) => setSelectedCattleId(e.target.value)}
+                                            className="premium-select"
+                                        >
+                                            <option value="">Select identity...</option>
+                                            {unassignedCattle.map(c => (
+                                                <option key={c.id} value={c.id}>
+                                                    {c.name || 'Unnamed'} {c.tag_number ? `[${c.tag_number}]` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="alert-box info mt-lg">
+                                        <Info size={16} />
+                                        <p>Hardware ID rotation will occur immediately upon binding to maintain encryption integrity.</p>
+                                    </div>
+                                    <footer className="modal-footer mt-xl">
+                                        <button className="btn-ghost" onClick={() => setShowAssignModal(false)}>
+                                            Abort
+                                        </button>
+                                        <button
+                                            className="btn-premium"
+                                            onClick={handleAssign}
+                                            disabled={!selectedCattleId}
+                                        >
+                                            Execute Link
+                                        </button>
+                                    </footer>
+                                </>
+                            ) : (
+                                <div className="empty-state-modal">
+                                    <AlertCircle size={48} className="text-amber opacity-30" />
+                                    <h4>No Identifiable Hosts</h4>
+                                    <p>Initialize new livestock profiles in the registry before attempting hardware binding.</p>
+                                    <button className="btn-premium mt-lg" onClick={() => navigate('/cattle')}>
+                                        Go to Registry <ArrowRight size={16} />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
         </div>
     );
 }
+
+// Internal Info component duplicate just for readability
+const Info = ({ size, className }) => <AlertCircle size={size} className={className} />;
 
 export default CollarManagement;
