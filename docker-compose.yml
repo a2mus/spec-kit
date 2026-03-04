@@ -9,7 +9,7 @@ services:
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=virtual_fencing_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -43,7 +43,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_URL=https://nexus-dz.duckdns.org/vfence-api
+      - REACT_APP_API_URL=http://localhost:3001
       - CHOKIDAR_USEPOLLING=true
     depends_on:
       - backend
@@ -70,6 +70,7 @@ services:
 volumes:
   db-data:
 
+
 networks:
   nexus-net:
-    external: true
+    driver: bridge
