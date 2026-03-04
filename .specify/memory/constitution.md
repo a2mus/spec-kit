@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # [PROJECT_NAME] Constitution
 <!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
 
@@ -49,17 +48,3 @@
 
 **Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
 <!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
-=======
-# Project Constitution - Virtual-Fencing-System
-
-## Core Principles
-1. **Animal Welfare**: Systems must prioritize cattle health and stress reduction.
-2. **Reliability**: Fence boundaries must be enforced with high temporal and spatial precision.
-3. **Connectivity-First**: Resilient handling of data from IoT collars (BLE/Simulated).
-4. **Data-Driven Insights**: Use activity classification to provide actionable health alerts.
-
-## Technology Stack
-- **Frontend**: React.js, Leaflet.
-- **Simulator**: Python, SQLite (for activity data).
-- **Communication**: BLE Protocol (documented).
->>>>>>> 0ccfd6f21030923368b12db59ce5db5409033a92
