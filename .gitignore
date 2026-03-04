@@ -51,4 +51,5 @@ docker-compose.override.yml
 # Misc
 *.tgz
 *.zip
-**/.DS_Store
+**/.DS_Storesimulator/*.db
+simulator/*.db-journal
