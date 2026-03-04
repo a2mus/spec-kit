@@ -3,7 +3,7 @@ FROM node:18-alpine
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # We do NOT copy source files here if we are using volumes for dev,
 # but it's good practice to have them for the build context or if volume fails.
