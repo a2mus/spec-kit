@@ -253,7 +253,8 @@
 /* Custom Overlay Controls */
 .map-overlay-controls {
     position: absolute;
-    top: var(--space-md);
+    top: 80px;
+    /* Offset to avoid top-left default controls */
     left: var(--space-md);
     z-index: 1000;
     display: flex;
@@ -302,8 +303,9 @@
 /* Premium Legend */
 .map-legend-premium {
     position: absolute;
-    bottom: var(--space-md);
-    right: var(--space-md);
+    bottom: 20px;
+    left: 20px;
+    right: auto;
     z-index: 1000;
     background: var(--bg-card);
     border: 1px solid var(--border-light);
@@ -533,4 +535,35 @@
         order: 1;
         border-radius: var(--radius-md);
     }
+
+    /* Custom Leaflet Control Styling for Dark Theme */
+    .leaflet-bar {
+        border: 1px solid var(--border-light) !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+        border-radius: var(--radius-md) !important;
+        overflow: hidden !important;
+    }
+
+    .leaflet-bar a,
+    .leaflet-bar a:hover,
+    .leaflet-draw-toolbar a,
+    .leaflet-draw-toolbar a:hover {
+        background-color: #1e293b !important;
+        color: #e2e8f0 !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    }
+
+    .leaflet-draw-toolbar a {
+        background-image: none !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    .leaflet-draw-draw-polygon {
+        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/></svg>') !important;
+        background-repeat: no-repeat !important;
+        background-position: center !important;
+    }
+
 }

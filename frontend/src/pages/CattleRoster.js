@@ -261,89 +261,91 @@ function CattleRoster() {
                             </button>
                         </header>
 
-                        <form onSubmit={handleSubmit} className="premium-form">
-                            <div className="form-grid">
-                                <div className="input-group-premium">
-                                    <label>Display Name</label>
-                                    <input
-                                        type="text"
-                                        name="name"
-                                        value={formData.name}
-                                        onChange={handleInputChange}
-                                        placeholder="Identification name"
-                                        required
-                                    />
+                        <div className="modal-body">
+                            <form onSubmit={handleSubmit} className="premium-form">
+                                <div className="form-grid">
+                                    <div className="input-group-premium">
+                                        <label>Display Name</label>
+                                        <input
+                                            type="text"
+                                            name="name"
+                                            value={formData.name}
+                                            onChange={handleInputChange}
+                                            placeholder="Identification name"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="input-group-premium">
+                                        <label>Visual Tag Number</label>
+                                        <input
+                                            type="text"
+                                            name="tag_number"
+                                            value={formData.tag_number}
+                                            onChange={handleInputChange}
+                                            placeholder="e.g. BE-0192"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="input-group-premium">
+                                        <label>Genetic Breed</label>
+                                        <input
+                                            type="text"
+                                            name="breed"
+                                            value={formData.breed}
+                                            onChange={handleInputChange}
+                                            placeholder="e.g. Charolais"
+                                        />
+                                    </div>
+                                    <div className="input-group-premium">
+                                        <label>Gender / Sex</label>
+                                        <select name="gender" value={formData.gender} onChange={handleInputChange}>
+                                            <option value="">Select gender</option>
+                                            <option value="female">Heifer / Cow</option>
+                                            <option value="male">Bull / Steer</option>
+                                        </select>
+                                    </div>
+                                    <div className="input-group-premium">
+                                        <label>Birth Date</label>
+                                        <input
+                                            type="date"
+                                            name="birth_date"
+                                            value={formData.birth_date}
+                                            onChange={handleInputChange}
+                                        />
+                                    </div>
+                                    <div className="input-group-premium">
+                                        <label>Registration Weight (kg)</label>
+                                        <input
+                                            type="number"
+                                            name="weight_kg"
+                                            value={formData.weight_kg}
+                                            onChange={handleInputChange}
+                                            placeholder="0.00"
+                                        />
+                                    </div>
                                 </div>
-                                <div className="input-group-premium">
-                                    <label>Visual Tag Number</label>
-                                    <input
-                                        type="text"
-                                        name="tag_number"
-                                        value={formData.tag_number}
-                                        onChange={handleInputChange}
-                                        placeholder="e.g. BE-0192"
-                                        required
-                                    />
-                                </div>
-                                <div className="input-group-premium">
-                                    <label>Genetic Breed</label>
-                                    <input
-                                        type="text"
-                                        name="breed"
-                                        value={formData.breed}
-                                        onChange={handleInputChange}
-                                        placeholder="e.g. Charolais"
-                                    />
-                                </div>
-                                <div className="input-group-premium">
-                                    <label>Gender / Sex</label>
-                                    <select name="gender" value={formData.gender} onChange={handleInputChange}>
-                                        <option value="">Select gender</option>
-                                        <option value="female">Heifer / Cow</option>
-                                        <option value="male">Bull / Steer</option>
-                                    </select>
-                                </div>
-                                <div className="input-group-premium">
-                                    <label>Birth Date</label>
-                                    <input
-                                        type="date"
-                                        name="birth_date"
-                                        value={formData.birth_date}
-                                        onChange={handleInputChange}
-                                    />
-                                </div>
-                                <div className="input-group-premium">
-                                    <label>Registration Weight (kg)</label>
-                                    <input
-                                        type="number"
-                                        name="weight_kg"
-                                        value={formData.weight_kg}
-                                        onChange={handleInputChange}
-                                        placeholder="0.00"
-                                    />
-                                </div>
-                            </div>
 
-                            <div className="input-group-premium full-width">
-                                <label>Clinical / Descriptive Notes</label>
-                                <textarea
-                                    name="notes"
-                                    value={formData.notes}
-                                    onChange={handleInputChange}
-                                    placeholder="Observe health conditions, distinctive marks..."
-                                    rows={4}
-                                />
-                            </div>
+                                <div className="input-group-premium full-width">
+                                    <label>Clinical / Descriptive Notes</label>
+                                    <textarea
+                                        name="notes"
+                                        value={formData.notes}
+                                        onChange={handleInputChange}
+                                        placeholder="Observe health conditions, distinctive marks..."
+                                        rows={4}
+                                    />
+                                </div>
 
-                            <footer className="modal-footer">
-                                <button type="button" className="btn-ghost" onClick={() => setShowModal(false)}>
-                                    Discard Changes
-                                </button>
-                                <button type="submit" className="btn-premium">
-                                    {editingCattle ? 'Save Data' : 'Initialize Registry'}
-                                </button>
-                            </footer>
-                        </form>
+                                <footer className="modal-footer">
+                                    <button type="button" className="btn-ghost" onClick={() => setShowModal(false)}>
+                                        Discard Changes
+                                    </button>
+                                    <button type="submit" className="btn-premium">
+                                        {editingCattle ? 'Save Data' : 'Initialize Registry'}
+                                    </button>
+                                </footer>
+                            </form>
+                        </div>
                     </div>
                 </div>
             )}

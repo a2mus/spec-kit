@@ -28,7 +28,7 @@ function App() {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     return (
-        <Router basename="/vfence">
+        <Router>
             <div className={`app-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
                 <Sidebar
                     collapsed={sidebarCollapsed}

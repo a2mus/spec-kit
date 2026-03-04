@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { MapContainer, TileLayer, Polygon, useMap, LayersControl } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon, useMap, LayersControl, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet-draw';
 import {
@@ -16,7 +16,8 @@ import {
     Navigation,
     Shield,
     Activity,
-    Maximize2
+    Maximize2,
+    X
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
@@ -56,7 +57,7 @@ function DrawControlNative({ onCreated }) {
         map.addLayer(drawnItems);
 
         const drawControl = new L.Control.Draw({
-            position: 'topright',
+            position: 'bottomright',
             draw: {
                 rectangle: false,
                 circle: false,
@@ -268,7 +269,8 @@ function FencingZones() {
                     </div>
                 </div>
                 <div className="zone-map-wrapper">
-                    <MapContainer center={mapCenter} zoom={15} scrollWheelZoom={true} className="map-engine">
+                    <MapContainer center={mapCenter} zoom={15} scrollWheelZoom={true} className="map-engine" zoomControl={false}>
+                        <ZoomControl position="topright" />
                         <LayersControl position="topright">
                             <LayersControl.BaseLayer checked name="Vector Map">
                                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -280,7 +282,7 @@ function FencingZones() {
 
                         <DrawControlNative onCreated={handleCreate} />
                         <FitBounds fences={fences} hasInitialFit={hasInitialFit} />
-                        <MapScaleAndMeasure />
+                        <MapScaleAndMeasure scalePosition="bottomright" measurePosition="bottomright" />
 
                         {fences.map(fence => (
                             <Polygon
@@ -302,10 +304,18 @@ function FencingZones() {
             {showCreateForm && (
                 <div className="modal-overlay-premium">
                     <div className="modal-premium">
-                        <div className="modal-header">
-                            <Shield size={24} className="text-cyan" />
-                            <h3>Define New Perimeter</h3>
-                        </div>
+                        <header className="modal-header">
+                            <div className="header-icon cyan">
+                                <Shield size={20} />
+                            </div>
+                            <div className="header-text">
+                                <h3>Define New Perimeter</h3>
+                                <p>Trace the boundary on the map first</p>
+                            </div>
+                            <button className="btn-close" onClick={() => setShowCreateForm(false)}>
+                                <X size={20} />
+                            </button>
+                        </header>
                         <div className="modal-body">
                             <div className="input-group-premium">
                                 <label>Perimeter Identifier</label>

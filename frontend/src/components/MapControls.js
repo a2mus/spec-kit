@@ -55,12 +55,18 @@ export function MeasureControl({ position = 'topleft' }) {
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    width: 30px;
-                    height: 30px;
-                    font-size: 16px;
+                    width: 40px;
+                    height: 40px;
+                    font-size: 18px;
                     text-decoration: none;
-                    background: white;
+                    background: rgba(30, 41, 59, 0.8) !important;
+                    color: #00F2FF !important;
+                    border: 1px solid rgba(0, 242, 255, 0.2) !important;
+                    border-radius: 8px !important;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+                    backdrop-filter: blur(8px) !important;
                     cursor: pointer;
+                    transition: all 0.2s ease;
                 `;
 
                 L.DomEvent.on(button, 'click', function (e) {

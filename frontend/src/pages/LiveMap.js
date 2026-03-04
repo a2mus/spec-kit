@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
-import { MapContainer, TileLayer, Polygon, Marker, Popup, useMap, LayersControl, Polyline, CircleMarker } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon, Marker, Popup, useMap, LayersControl, Polyline, CircleMarker, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet-draw';
 import * as turf from '@turf/turf';
@@ -213,7 +213,7 @@ function DrawControlNative({ onCreated }) {
 
         if (!drawControlRef.current) {
             drawControlRef.current = new L.Control.Draw({
-                position: 'topright',
+                position: 'bottomright',
                 draw: {
                     rectangle: false,
                     circle: false,
@@ -521,7 +521,8 @@ function LiveMap() {
                     </div>
                 )}
 
-                <MapContainer center={mapCenter} zoom={15} scrollWheelZoom={true} ref={mapRef} className="map-engine">
+                <MapContainer center={mapCenter} zoom={15} scrollWheelZoom={true} ref={mapRef} className="map-engine" zoomControl={false}>
+                    <ZoomControl position="topright" />
                     <LayersControl position="topright">
                         <LayersControl.BaseLayer checked name="Cartographic">
                             <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -533,7 +534,7 @@ function LiveMap() {
 
                     <FitBounds fences={fences} collars={collars} hasInitialFit={hasInitialFit} />
                     <DrawControlNative onCreated={handleCreate} />
-                    <MapScaleAndMeasure />
+                    <MapScaleAndMeasure scalePosition="bottomright" measurePosition="bottomright" />
 
                     {fences.map(fence => (
                         <Polygon key={fence.id} positions={fence.positions} pathOptions={{ color: '#00F2FF', fillColor: '#00F2FF', fillOpacity: 0.05, weight: 2 }} />

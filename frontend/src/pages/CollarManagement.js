@@ -284,7 +284,7 @@ function CollarManagement() {
                             </button>
                         </header>
 
-                        <div className="modal-body-premium">
+                        <div className="modal-body">
                             {unassignedCattle.length > 0 ? (
                                 <>
                                     <div className="input-group-premium full-width">

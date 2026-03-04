@@ -16,6 +16,7 @@
     font-weight: 800;
     background: linear-gradient(135deg, #fff 0%, var(--color-primary-cyan) 100%);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
     letter-spacing: -0.5px;
 }
@@ -303,59 +304,32 @@
     margin-bottom: var(--space-sm);
 }
 
-/* Modal Wide */
+/* Modal Refinements */
 .modal-wide {
-    max-width: 600px !important;
+    max-width: 640px !important;
 }
 
 .premium-form {
     display: flex;
     flex-direction: column;
     gap: var(--space-lg);
+    padding: var(--space-lg);
 }
 
 .form-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: var(--space-md);
+    gap: var(--space-lg);
 }
 
 .input-group-premium {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
 }
 
 .input-group-premium.full-width {
     grid-column: 1 / -1;
-}
-
-.input-group-premium label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-secondary);
-    font-weight: 700;
-}
-
-.input-group-premium input,
-.input-group-premium select,
-.input-group-premium textarea {
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-md);
-    padding: 10px var(--space-md);
-    color: var(--text-primary);
-    font-size: 14px;
-    transition: all 0.2s;
-}
-
-.input-group-premium input:focus,
-.input-group-premium select:focus,
-.input-group-premium textarea:focus {
-    outline: none;
-    border-color: var(--color-primary-cyan);
-    box-shadow: 0 0 10px rgba(0, 242, 255, 0.1);
 }
 
 .modal-header .header-icon {
@@ -365,21 +339,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
 }
 
 .header-icon.cyan {
     background: rgba(0, 242, 255, 0.05);
     color: var(--color-primary-cyan);
-}
-
-.modal-header .header-text h3 {
-    font-size: 18px;
-    font-weight: 800;
-}
-
-.modal-header .header-text p {
-    font-size: 13px;
-    color: var(--text-secondary);
+    border: 1px solid rgba(0, 242, 255, 0.1);
 }
 
 /* Responsive */
