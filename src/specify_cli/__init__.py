@@ -758,7 +758,7 @@ def download_template_from_github(
     debug: bool = False,
     github_token: str = None,
 ) -> Tuple[Path, dict]:
-    repo_owner = "github"
+    repo_owner = "a2mus"
     repo_name = "spec-kit"
     if client is None:
         client = httpx.Client(verify=ssl_context)
@@ -1201,7 +1201,7 @@ SKILL_DESCRIPTIONS = {
     "brainstorm": "Interactive product brainstorming and specification workflow. Use at project start to define product requirements through guided Q&A. Generates product-spec.md with technology recommendations, architecture decisions, and functional requirements.",
     "uidesign": "UI design specification workflow with AI-generated mockup prompts. Use after brainstorm to define the visual interface. Generates ui-spec.md with layout, components, styling, and interaction patterns.",
     "initiate": "Generate project constitution from product and UI specifications. Use after brainstorm and uidesign to create development guidelines and best practices. Produces constitution.md for the entire development lifecycle.",
-    "progress": "Check spec progression and present a status report with accomplished/in-progress tasks, metrics, cross-referenced sources, and recommended next steps",
+    "progress": "Generate comprehensive progress reports by aggregating data from Memory Bank, specs folder, and conversation history. Use to check accomplishments, in-progress tasks, blockers, metrics, and recommended next steps.",
     "brutalreview": "Comprehensive end-to-end app review covering code quality, UX, security vulnerabilities, performance issues, and product strategy. Generates detailed report with critical flaws, architecture concerns, and actionable improvement proposals. Saves screenshots to .specify/reviews/screenshots/. Optional focus areas: --focus=security|ux|performance|architecture. Auto-detects project type and adjusts review criteria.",
 }
 

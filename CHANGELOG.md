@@ -7,6 +7,17 @@ Recent changes to the Specify CLI and templates are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-03-02
+
+### Added
+
+- **Antigravity Workflow Integration**: Added 11 workflow files to `.agent/workflows/` for use as Antigravity slash commands
+  - **Spec-Kit Core Workflows** (9): `/speckit-analyze`, `/speckit-checklist`, `/speckit-clarify`, `/speckit-constitution`, `/speckit-implement`, `/speckit-plan`, `/speckit-progress`, `/speckit-specify`, `/speckit-tasks`
+  - **General Workflows** (2): `/smart-push` (intelligent git commits), `/plan-with-opus` (Architect-Builder planning model)
+  - `speckit-implement` generalized to be platform-agnostic (removed Android-specific patterns)
+  - `plan-with-opus` adapted to reference `/speckit-implement` for execution
+- Added `progress` entry to `SKILL_DESCRIPTIONS` for AI skill metadata
+
 ## [0.2.1] - 2026-02-27
 
 ### Added
