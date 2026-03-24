@@ -300,6 +300,7 @@ Additional commands for enhanced quality and validation:
 | `/speckit.analyze`   | Cross-artifact consistency & coverage analysis (run after `/speckit.tasks`, before `/speckit.implement`)                             |
 | `/speckit.checklist` | Generate custom quality checklists that validate requirements completeness, clarity, and consistency (like "unit tests for English") |
 | `/speckit.progress`  | Check spec progression and present status report with accomplished/in-progress tasks and next steps                                  |
+| `/speckit.brutalreview` | Comprehensive app review covering code quality, UX, security, performance, and product strategy with detailed report and improvement proposals |
 
 ### Environment Variables
 

@@ -20,7 +20,9 @@ param(
     [switch]$RequireTasks,
     [switch]$IncludeTasks,
     [switch]$PathsOnly,
-    [switch]$Help
+    [switch]$Help,
+    [switch]$CheckCode,
+    [switch]$DetectProjectType
 )
 
 $ErrorActionPreference = 'Stop'
@@ -145,4 +147,174 @@ if ($Json) {
     if ($IncludeTasks) {
         Test-FileExists -Path $paths.TASKS -Description 'tasks.md' | Out-Null
     }
+}
+
+# Function to check prerequisites for brutal review
+function Test-BrutalReviewPrereqs {
+    param(
+        [string]$RepoRoot,
+        [bool]$JsonOutput = $false
+    )
+    
+    # Initialize variables
+    $hasCode = $false
+    $projectType = "unknown"
+    $fileStats = @{}
+    $techStack = @()
+    $entryPoints = @()
+    
+    # Count files by type
+    $jsFiles = @(Get-ChildItem -Path $RepoRoot -Recurse -Include *.js,*.ts,*.jsx,*.tsx -File -ErrorAction SilentlyContinue)
+    $pyFiles = @(Get-ChildItem -Path $RepoRoot -Recurse -Include *.py -File -ErrorAction SilentlyContinue)
+    $htmlFiles = @(Get-ChildItem -Path $RepoRoot -Recurse -Include *.html -File -ErrorAction SilentlyContinue)
+    $cssFiles = @(Get-ChildItem -Path $RepoRoot -Recurse -Include *.css,*.scss,*.less -File -ErrorAction SilentlyContinue)
+    $rustFiles = @(Get-ChildItem -Path $RepoRoot -Recurse -Include *.rs -File -ErrorAction SilentlyContinue)
+    $goFiles = @(Get-ChildItem -Path $RepoRoot -Recurse -Include *.go -File -ErrorAction SilentlyContinue)
+    $javaFiles = @(Get-ChildItem -Path $RepoRoot -Recurse -Include *.java,*.kt -File -ErrorAction SilentlyContinue)
+    $mobileDirs = @(Get-ChildItem -Path $RepoRoot -Directory -Filter "android","ios" -ErrorAction SilentlyContinue)
+    
+    $fileStats = @{
+        javascript = $jsFiles.Count
+        python = $pyFiles.Count
+        html = $htmlFiles.Count
+        css = $cssFiles.Count
+        rust = $rustFiles.Count
+        go = $goFiles.Count
+        java = $javaFiles.Count
+        total = ($jsFiles.Count + $pyFiles.Count + $htmlFiles.Count + $cssFiles.Count + $rustFiles.Count + $goFiles.Count + $javaFiles.Count)
+    }
+    
+    # Determine project type
+    $pubspecYaml = Join-Path $RepoRoot "pubspec.yaml"
+    $packageJson = Join-Path $RepoRoot "package.json"
+    $pyprojectToml = Join-Path $RepoRoot "pyproject.toml"
+    $setupPy = Join-Path $RepoRoot "setup.py"
+    $cargoToml = Join-Path $RepoRoot "Cargo.toml"
+    $goMod = Join-Path $RepoRoot "go.mod"
+    
+    if ((Test-Path $pubspecYaml) -or $mobileDirs.Count -gt 0) {
+        $projectType = "mobile-app"
+    }
+    elseif (Test-Path $packageJson) {
+        $androidGradle = Join-Path $RepoRoot "android/build.gradle"
+        $iosDir = Join-Path $RepoRoot "ios"
+        
+        if ((Test-Path $androidGradle) -or (Test-Path $iosDir)) {
+            $projectType = "mobile-app"
+        }
+        else {
+            try {
+                $packageContent = Get-Content $packageJson -Raw | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($packageContent.dependencies -and ($packageContent.dependencies.react -or $packageContent.dependencies.vue -or $packageContent.dependencies.angular -or $packageContent.dependencies.svelte)) {
+                    $projectType = "web-app"
+                }
+                elseif ($packageContent.main -or $packageContent.exports) {
+                    $projectType = "library"
+                }
+                else {
+                    $projectType = "web-app"
+                }
+            }
+            catch {
+                $projectType = "web-app"
+            }
+        }
+    }
+    elseif ((Test-Path $pyprojectToml) -or (Test-Path $setupPy)) {
+        if (Test-Path $pyprojectToml) {
+            $tomlContent = Get-Content $pyprojectToml -Raw -ErrorAction SilentlyContinue
+            if ($tomlContent -match '\[project\.scripts\]') {
+                $projectType = "cli-tool"
+            }
+            elseif ($pyFiles.Count -lt 10 -and (Test-Path $setupPy)) {
+                $projectType = "library"
+            }
+            else {
+                $projectType = "cli-tool"
+            }
+        }
+        else {
+            $projectType = "cli-tool"
+        }
+    }
+    elseif (Test-Path $cargoToml) {
+        $cargoContent = Get-Content $cargoToml -Raw -ErrorAction SilentlyContinue
+        if ($cargoContent -match '^\[lib\]') {
+            $projectType = "library"
+        }
+        elseif ($cargoContent -match '\[\[bin\]\]') {
+            $projectType = "cli-tool"
+        }
+        else {
+            $projectType = "unknown"
+        }
+    }
+    elseif (Test-Path $goMod) {
+        $mainGo = Join-Path $RepoRoot "main.go"
+        $mainGoFiles = @(Get-ChildItem -Path $RepoRoot -Recurse -Filter "main.go" -File -ErrorAction SilentlyContinue)
+        if ((Test-Path $mainGo) -or $mainGoFiles.Count -gt 0) {
+            $projectType = "cli-tool"
+        }
+        else {
+            $projectType = "library"
+        }
+    }
+    
+    # Check if has substantial code
+    if ($fileStats.total -gt 3) {
+        $hasCode = $true
+    }
+    
+    # Detect tech stack
+    if (Test-Path $packageJson) { $techStack += "nodejs" }
+    if (Test-Path $pyprojectToml) { $techStack += "python" }
+    if (Test-Path (Join-Path $RepoRoot "requirements.txt")) { $techStack += "python" }
+    if (Test-Path $cargoToml) { $techStack += "rust" }
+    if (Test-Path $goMod) { $techStack += "go" }
+    if (Test-Path (Join-Path $RepoRoot "pom.xml")) { $techStack += "java" }
+    if (Test-Path $pubspecYaml) { $techStack += "flutter" }
+    if (Test-Path (Join-Path $RepoRoot "Gemfile")) { $techStack += "ruby" }
+    if (Test-Path (Join-Path $RepoRoot "composer.json")) { $techStack += "php" }
+    
+    # Find entry points
+    $possibleEntryPoints = @(
+        (Join-Path $RepoRoot "src/index.js"),
+        (Join-Path $RepoRoot "src/main.py"),
+        (Join-Path $RepoRoot "main.go"),
+        (Join-Path $RepoRoot "src/main.rs"),
+        (Join-Path $RepoRoot "lib/main.dart")
+    )
+    
+    foreach ($ep in $possibleEntryPoints) {
+        if (Test-Path $ep) {
+            $entryPoints += $ep.Substring($RepoRoot.Length + 1)
+        }
+    }
+    
+    # Output results
+    $result = [PSCustomObject]@{
+        HAS_CODE = $hasCode
+        PROJECT_TYPE = $projectType
+        FILE_STATS = $fileStats
+        TECH_STACK = $techStack
+        ENTRY_POINTS = $entryPoints
+    }
+    
+    if ($JsonOutput) {
+        $result | ConvertTo-Json -Compress
+    }
+    else {
+        Write-Output "HAS_CODE: $hasCode"
+        Write-Output "PROJECT_TYPE: $projectType"
+        Write-Output "FILE_STATS: $($fileStats | ConvertTo-Json -Compress)"
+        Write-Output "TECH_STACK: [$($techStack -join ', ')]"
+        Write-Output "ENTRY_POINTS: [$($entryPoints -join ', ')]"
+    }
+}
+
+# Handle brutalreview parameters
+if ($CheckCode -or $DetectProjectType) {
+    $repoRoot = Get-Location
+    Test-BrutalReviewPrereqs -RepoRoot $repoRoot -JsonOutput $Json
+    exit 0
 }

@@ -164,3 +164,134 @@ else
         check_file "$TASKS" "tasks.md"
     fi
 fi
+
+# Function to check prerequisites for brutal review
+check_brutalreview_prereqs() {
+    local repo_root="$1"
+    local json_output="${2:-false}"
+    
+    # Initialize variables
+    local has_code=false
+    local project_type="unknown"
+    local file_stats="{}"
+    local tech_stack="[]"
+    local entry_points="[]"
+    
+    # Count files by type
+    local js_count=$(find "$repo_root" -type f \( -name "*.js" -o -name "*.ts" -o -name "*.jsx" -o -name "*.tsx" \) 2>/dev/null | wc -l)
+    local py_count=$(find "$repo_root" -type f \( -name "*.py" \) 2>/dev/null | wc -l)
+    local html_count=$(find "$repo_root" -type f -name "*.html" 2>/dev/null | wc -l)
+    local css_count=$(find "$repo_root" -type f \( -name "*.css" -o -name "*.scss" -o -name "*.less" \) 2>/dev/null | wc -l)
+    local rust_count=$(find "$repo_root" -type f -name "*.rs" 2>/dev/null | wc -l)
+    local go_count=$(find "$repo_root" -type f -name "*.go" 2>/dev/null | wc -l)
+    local java_count=$(find "$repo_root" -type f \( -name "*.java" -o -name "*.kt" \) 2>/dev/null | wc -l)
+    local mobile_count=$(find "$repo_root" -type d \( -name "android" -o -name "ios" \) 2>/dev/null | wc -l)
+    
+    # Determine project type
+    if [[ -f "$repo_root/pubspec.yaml" ]] || [[ $mobile_count -gt 0 ]]; then
+        project_type="mobile-app"
+    elif [[ -f "$repo_root/package.json" ]]; then
+        if [[ -f "$repo_root/android/build.gradle" ]] || [[ -d "$repo_root/ios" ]]; then
+            project_type="mobile-app"
+        elif grep -q '"react"\|"vue"\|"angular"\|"svelte"' "$repo_root/package.json" 2>/dev/null; then
+            project_type="web-app"
+        elif grep -q '"main"\|"exports"' "$repo_root/package.json" 2>/dev/null && [[ $js_count -lt 5 ]]; then
+            project_type="library"
+        else
+            project_type="web-app"
+        fi
+    elif [[ -f "$repo_root/pyproject.toml" ]] || [[ -f "$repo_root/setup.py" ]]; then
+        if [[ -f "$repo_root/pyproject.toml" ]] && grep -q '\[project.scripts\]' "$repo_root/pyproject.toml" 2>/dev/null; then
+            project_type="cli-tool"
+        elif [[ $py_count -lt 10 ]] && [[ -f "$repo_root/setup.py" ]]; then
+            project_type="library"
+        else
+            project_type="cli-tool"
+        fi
+    elif [[ -f "$repo_root/Cargo.toml" ]]; then
+        if grep -q '^\[lib\]' "$repo_root/Cargo.toml" 2>/dev/null; then
+            project_type="library"
+        elif grep -q '\[\[bin\]\]' "$repo_root/Cargo.toml" 2>/dev/null; then
+            project_type="cli-tool"
+        else
+            project_type="unknown"
+        fi
+    elif [[ -f "$repo_root/go.mod" ]]; then
+        if [[ -f "$repo_root/main.go" ]] || [[ $(find "$repo_root" -name "main.go" | wc -l) -gt 0 ]]; then
+            project_type="cli-tool"
+        else
+            project_type="library"
+        fi
+    fi
+    
+    # Check if has substantial code
+    local total_files=$((js_count + py_count + html_count + css_count + rust_count + go_count + java_count))
+    if [[ $total_files -gt 3 ]]; then
+        has_code=true
+    fi
+    
+    # Build file stats JSON
+    file_stats=$(printf '{"javascript":%d,"python":%d,"html":%d,"css":%d,"rust":%d,"go":%d,"java":%d,"total":%d}' \
+        "$js_count" "$py_count" "$html_count" "$css_count" "$rust_count" "$go_count" "$java_count" "$total_files")
+    
+    # Detect tech stack
+    local stack_items=()
+    [[ -f "$repo_root/package.json" ]] && stack_items+=("nodejs")
+    [[ -f "$repo_root/pyproject.toml" ]] && stack_items+=("python")
+    [[ -f "$repo_root/requirements.txt" ]] && stack_items+=("python")
+    [[ -f "$repo_root/Cargo.toml" ]] && stack_items+=("rust")
+    [[ -f "$repo_root/go.mod" ]] && stack_items+=("go")
+    [[ -f "$repo_root/pom.xml" ]] && stack_items+=("java")
+    [[ -f "$repo_root/pubspec.yaml" ]] && stack_items+=("flutter")
+    [[ -f "$repo_root/Gemfile" ]] && stack_items+=("ruby")
+    [[ -f "$repo_root/composer.json" ]] && stack_items+=("php")
+    
+    # Build tech stack JSON array
+    if [[ ${#stack_items[@]} -gt 0 ]]; then
+        tech_stack="[$(printf '"%s",' "${stack_items[@]}" | sed 's/,$//')]"
+    fi
+    
+    # Find entry points
+    local entry_items=()
+    [[ -f "$repo_root/src/index.js" ]] && entry_items+=("src/index.js")
+    [[ -f "$repo_root/src/main.py" ]] && entry_items+=("src/main.py")
+    [[ -f "$repo_root/main.go" ]] && entry_items+=("main.go")
+    [[ -f "$repo_root/src/main.rs" ]] && entry_items+=("src/main.rs")
+    [[ -f "$repo_root/lib/main.dart" ]] && entry_items+=("lib/main.dart")
+    
+    if [[ ${#entry_items[@]} -gt 0 ]]; then
+        entry_points="[$(printf '"%s",' "${entry_items[@]}" | sed 's/,$//')]"
+    fi
+    
+    # Output results
+    if [[ "$json_output" == "true" ]]; then
+        printf '{"HAS_CODE":%s,"PROJECT_TYPE":"%s","FILE_STATS":%s,"TECH_STACK":%s,"ENTRY_POINTS":%s}\n' \
+            "$has_code" "$project_type" "$file_stats" "$tech_stack" "$entry_points"
+    else
+        echo "HAS_CODE: $has_code"
+        echo "PROJECT_TYPE: $project_type"
+        echo "FILE_STATS: $file_stats"
+        echo "TECH_STACK: $tech_stack"
+        echo "ENTRY_POINTS: $entry_points"
+    fi
+}
+
+# Handle brutalreview flags
+CHECK_CODE=false
+DETECT_PROJECT_TYPE=false
+
+for arg in "$@"; do
+    case "$arg" in
+        --check-code)
+            CHECK_CODE=true
+            ;;
+        --detect-project-type)
+            DETECT_PROJECT_TYPE=true
+            ;;
+    esac
+done
+
+if $CHECK_CODE || $DETECT_PROJECT_TYPE; then
+    check_brutalreview_prereqs "$REPO_ROOT" "$JSON_MODE"
+    exit 0
+fi
