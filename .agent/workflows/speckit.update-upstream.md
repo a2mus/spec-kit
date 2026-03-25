@@ -2,6 +2,10 @@
 description: "Intelligently sync your fork with the upstream spec-kit repository. Reads both versions of every changed file, compares quality, and produces the richest possible result by blending the best of each."
 ---
 
+> [!IMPORTANT]
+> **Leverage Project Skills**: Before performing any task, scan the project's available skills (typically in `.agent/skills/` or equivalent agent-specific skill directories). If a skill exists that is relevant to the work at hand, read its `SKILL.md` and follow its instructions to complete the task. Only fall back to your own general knowledge when no applicable skill is available or when the task is straightforward enough that a skill lookup would be unnecessary.
+
+
 # Smart Upstream Sync
 
 Sync your fork with `github/spec-kit` — **intelligently, not blindly**.

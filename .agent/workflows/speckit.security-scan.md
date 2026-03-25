@@ -2,6 +2,10 @@
 description: "Mandatory security audit checklist covering secrets, injection, CSRF, rate limiting, dependencies."
 ---
 
+> [!IMPORTANT]
+> **Leverage Project Skills**: Before performing any task, scan the project's available skills (typically in `.agent/skills/` or equivalent agent-specific skill directories). If a skill exists that is relevant to the work at hand, read its `SKILL.md` and follow its instructions to complete the task. Only fall back to your own general knowledge when no applicable skill is available or when the task is straightforward enough that a skill lookup would be unnecessary.
+
+
 # Security Scan Command
 
 Perform a comprehensive security audit of the current codebase or specifically targeted files:

@@ -2,6 +2,10 @@
 description: Check spec progression and present status report with accomplished/in-progress tasks and next steps
 ---
 
+> [!IMPORTANT]
+> **Leverage Project Skills**: Before performing any task, scan the project's available skills (typically in `.agent/skills/` or equivalent agent-specific skill directories). If a skill exists that is relevant to the work at hand, read its `SKILL.md` and follow its instructions to complete the task. Only fall back to your own general knowledge when no applicable skill is available or when the task is straightforward enough that a skill lookup would be unnecessary.
+
+
 # Spec-Kit Progress
 
 Generate a comprehensive progress report for the current spec by aggregating information from Memory Bank, specs folder, and conversation history.

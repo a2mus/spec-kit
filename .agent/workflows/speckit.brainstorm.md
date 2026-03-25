@@ -10,6 +10,10 @@ handoffs:
     prompt: Generate the project constitution from the product and UI specifications.
 ---
 
+> [!IMPORTANT]
+> **Leverage Project Skills**: Before performing any task, scan the project's available skills (typically in `.agent/skills/` or equivalent agent-specific skill directories). If a skill exists that is relevant to the work at hand, read its `SKILL.md` and follow its instructions to complete the task. Only fall back to your own general knowledge when no applicable skill is available or when the task is straightforward enough that a skill lookup would be unnecessary.
+
+
 ## User Input
 
 ```text
