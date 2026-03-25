@@ -6,6 +6,11 @@ Auto-generated from all feature plans. Last updated: [DATE]
 
 [EXTRACTED FROM ALL PLAN.MD FILES]
 
+## Rules & Standards
+
+- **Core Principles**: See `.specify/rules/development-rules.md` for our primary development standards and AI-assisted workflow patterns.
+- **Spec-Driven Process**: We follow a strict cycle: Spec -> Plan -> Task -> Implement.
+
 ## Project Structure
 
 ```text

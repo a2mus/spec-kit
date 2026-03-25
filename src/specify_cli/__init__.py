@@ -1203,6 +1203,12 @@ SKILL_DESCRIPTIONS = {
     "initiate": "Generate project constitution from product and UI specifications. Use after brainstorm and uidesign to create development guidelines and best practices. Produces constitution.md for the entire development lifecycle.",
     "progress": "Generate comprehensive progress reports by aggregating data from Memory Bank, specs folder, and conversation history. Use to check accomplishments, in-progress tasks, blockers, metrics, and recommended next steps.",
     "brutalreview": "Comprehensive end-to-end app review covering code quality, UX, security vulnerabilities, performance issues, and product strategy. Generates detailed report with critical flaws, architecture concerns, and actionable improvement proposals. Saves screenshots to .specify/reviews/screenshots/. Optional focus areas: --focus=security|ux|performance|architecture. Auto-detects project type and adjusts review criteria.",
+    "tdd": "Enforce test-driven development workflow. Scaffold interfaces, generate tests FIRST, then implement minimal code to pass. Ensure 80%+ coverage.",
+    "code-review": "Comprehensive security and quality review of uncommitted changes.",
+    "build-fix": "Incrementally fix build and type errors with minimal, safe changes.",
+    "verify": "Run comprehensive verification on current codebase state.",
+    "refactor-clean": "Safely identify and remove dead code with test verification at every step.",
+    "security-scan": "Mandatory security audit checklist covering secrets, injection, CSRF, rate limiting, dependencies.",
 }
 
 
@@ -1399,6 +1405,75 @@ def install_ai_skills(
         else:
             console.print("[yellow]No skills were installed[/yellow]")
 
+    return installed_count > 0 or skipped_count > 0
+
+
+def install_ecc_skills(
+    project_path: Path, selected_ai: str, tracker: StepTracker | None = None
+) -> bool:
+    """Install ECC skills from templates/skills/ to the agent's skills directory.
+    
+    Installation is additive — existing files are never removed.
+    
+    Args:
+        project_path: Target project directory.
+        selected_ai: AI assistant key from ``AGENT_CONFIG``.
+        tracker: Optional progress tracker.
+        
+    Returns:
+        ``True`` if at least one skill was installed or all skills were already present, ``False`` otherwise.
+    """
+    # Prefer the templates bundle extracted to the project
+    skills_source_dir = project_path / ".specify" / "templates" / "skills"
+    
+    if not skills_source_dir.exists() or not any(skills_source_dir.iterdir()):
+        # Fallback to the package's bundled templates directory
+        script_dir = Path(__file__).parent.parent.parent
+        skills_source_dir = script_dir / "templates" / "skills"
+        if not skills_source_dir.exists() or not any(skills_source_dir.iterdir()):
+            if tracker:
+                tracker.skip("ecc-skills", "no ECC skills found in templates")
+            return False
+
+    skills_dir = _get_skills_dir(project_path, selected_ai)
+    skills_dir.mkdir(parents=True, exist_ok=True)
+    
+    installed_count = 0
+    skipped_count = 0
+    
+    for skill_path in skills_source_dir.iterdir():
+        if not skill_path.is_dir():
+            continue
+            
+        skill_name = skill_path.name
+        dest_dir = skills_dir / skill_name
+        
+        if dest_dir.exists():
+            skipped_count += 1
+            continue
+            
+        try:
+            shutil.copytree(skill_path, dest_dir)
+            installed_count += 1
+        except Exception as e:
+            console.print(f"[yellow]Warning: Failed to install ECC skill {skill_name}: {e}[/yellow]")
+            continue
+            
+    if tracker:
+        if installed_count > 0 and skipped_count > 0:
+            tracker.complete("ecc-skills", f"{installed_count} new + {skipped_count} existing ECC skills")
+        elif installed_count > 0:
+            tracker.complete("ecc-skills", f"{installed_count} ECC skills installed")
+        elif skipped_count > 0:
+            tracker.complete("ecc-skills", f"{skipped_count} ECC skills already present")
+        else:
+            tracker.error("ecc-skills", "no ECC skills installed")
+    else:
+        if installed_count > 0:
+            console.print(f"[green]✓[/green] Installed {installed_count} ECC skills to {skills_dir.relative_to(project_path)}/")
+        elif skipped_count > 0:
+            console.print(f"[green]✓[/green] {skipped_count} ECC skills already present")
+            
     return installed_count > 0 or skipped_count > 0
 
 
@@ -1684,6 +1759,7 @@ def init(
         tracker.add(key, label)
     if ai_skills:
         tracker.add("ai-skills", "Install agent skills")
+        tracker.add("ecc-skills", "Install ECC skills")
     for key, label in [
         ("cleanup", "Cleanup"),
         ("git", "Initialize git repository"),
@@ -1733,6 +1809,10 @@ def init(
 
             if ai_skills:
                 skills_ok = install_ai_skills(
+                    project_path, selected_ai, tracker=tracker
+                )
+                
+                install_ecc_skills(
                     project_path, selected_ai, tracker=tracker
                 )
 
