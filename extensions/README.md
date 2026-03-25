@@ -68,12 +68,10 @@ specify extension add --from https://github.com/org/spec-kit-ext/archive/refs/ta
 
 ## Available Community Extensions
 
-The following community-contributed extensions are available in [`catalog.community.json`](catalog.community.json):
+See the [Community Extensions](../README.md#-community-extensions) section in the main README for the full list of available community-contributed extensions.
 
-| Extension | Purpose | URL |
-|-----------|---------|-----|
-| V-Model Extension Pack | Enforces V-Model paired generation of development specs and test specs with full traceability | [spec-kit-v-model](https://github.com/leocamello/spec-kit-v-model) |
-| Cleanup Extension | Post-implementation quality gate that reviews changes, fixes small issues (scout rule), creates tasks for medium issues, and generates analysis for large issues | [spec-kit-cleanup](https://github.com/dsrednicki/spec-kit-cleanup) |
+For the raw catalog data, see [`catalog.community.json`](catalog.community.json).
+
 
 ## Adding Your Extension
 
