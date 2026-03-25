@@ -24,6 +24,7 @@
 - [📽️ Video Overview](#️-video-overview)
 - [🤖 Supported AI Agents](#-supported-ai-agents)
 - [🔧 Specify CLI Reference](#-specify-cli-reference)
+- [🧠 AI Skills](#-ai-skills---ai-skills)
 - [📚 Core Philosophy](#-core-philosophy)
 - [🌟 Development Phases](#-development-phases)
 - [🎯 Experimental Goals](#-experimental-goals)
@@ -271,11 +272,83 @@ specify init --here --ai gemini --ai-skills
 specify check
 ```
 
-### Available Slash Commands
+## 🧠 AI Skills (`--ai-skills`)
+
+**AI Skills** are Prompt.MD files installed into your agent's dedicated `skills/` directory. They give your AI assistant persistent, structured knowledge about development best practices — loaded automatically as context every time the agent starts.
+
+Skills follow the [agentskills.io specification](https://agentskills.io/specification): each skill is a folder containing a `SKILL.md` file with a YAML frontmatter `name` and `description`, plus detailed instructions in the body.
+
+### What gets installed
+
+Running `specify init` with `--ai-skills` installs **36 curated skills** covering:
+
+| Category | Skills |
+| -------- | ------ |
+| **Spec-Driven Process** | `speckit-specify`, `speckit-plan`, `speckit-tasks`, `speckit-implement`, `speckit-analyze`, `speckit-clarify`, `speckit-constitution`, `speckit-checklist`, `speckit-brainstorm`, `speckit-uidesign`, `speckit-initiate`, `speckit-progress`, `speckit-brutalreview`, `speckit-taskstoissues` |
+| **Code Quality** | `tdd-workflow`, `verification-loop`, `coding-standards`, `security-review`, `e2e-testing` |
+| **Architecture** | `api-design`, `frontend-patterns`, `backend-patterns`, `codebase-onboarding`, `design-system`, `deep-research`, `architecture-decision-records` |
+| **Infrastructure** | `deployment-patterns`, `docker-patterns`, `database-migrations` |
+| **Language-Specific** | `python-patterns`, `python-testing`, `golang-patterns`, `golang-testing`, `rust-patterns`, `rust-testing` |
+
+### How to install
+
+Add `--ai-skills` to any `specify init` command:
+
+```bash
+# New project with skills
+specify init my-project --ai agy --ai-skills
+
+# Existing project (run from inside the project folder)
+specify init --here --ai agy --ai-skills
+
+# Works with any supported agent
+specify init my-project --ai claude --ai-skills
+specify init my-project --ai gemini --ai-skills
+```
+
+### Where skills are installed
+
+Skills are placed in the agent's native `skills/` directory inside your project:
+
+| Agent | Skills Directory |
+| ----- | ---------------- |
+| `agy` (Antigravity) | `.agent/skills/` |
+| `claude` | `.claude/skills/` |
+| `gemini` | `.gemini/skills/` |
+| `cursor-agent` | `.cursor/skills/` |
+| `copilot` | `.github/skills/` |
+| `windsurf` | `.windsurf/skills/` |
+| `codex` | `.agents/skills/` |
+| All others | `.<agent-folder>/skills/` |
+
+### Using skills with Antigravity
+
+Antigravity automatically loads skills from `.agent/skills/` when it opens your workspace. Each skill appears as a knowledge set the assistant can draw on during development.
+
+After running `specify init --here --ai agy --ai-skills`, your project will contain:
+
+```text
+.agent/
+├── skills/              ← AI Skills (persistent knowledge context)
+│   ├── tdd-workflow/
+│   │   └── SKILL.md
+│   ├── security-review/
+│   │   └── SKILL.md
+│   └── ... (34 more skills)
+└── workflows/           ← Slash commands (/speckit-plan, /speckit-implement, etc.)
+    ├── speckit-plan.md
+    └── ...
+```
+
+> **Skills vs. Workflows**: Skills provide *passive context* the agent loads automatically. Workflows are *slash commands* you invoke explicitly (e.g., `/speckit-plan`). Both are installed in the `.agent/` directory for Antigravity.
+
 
 After running `specify init`, your AI coding agent will have access to these slash commands for structured development:
 
+### Available Slash Commands
+
 #### Core Commands
+
 
 Essential commands for the Spec-Driven Development workflow:
 
