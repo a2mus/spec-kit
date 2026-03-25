@@ -2108,6 +2108,223 @@ def version():
     console.print()
 
 
+# ===== Update Command =====
+
+
+@app.command()
+def update(
+    upstream_url: str = typer.Option(
+        "https://github.com/github/spec-kit.git",
+        "--upstream",
+        help="URL of the original upstream repository to fetch from",
+    ),
+    branch: str = typer.Option(
+        "main",
+        "--branch",
+        help="Upstream branch to merge from",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Preview incoming changes without applying them",
+    ),
+    reset_upstream: bool = typer.Option(
+        False,
+        "--reset-upstream",
+        help="Update the upstream remote URL even if it already exists",
+    ),
+) -> None:
+    """Sync your fork with the original upstream spec-kit repository.
+
+    Configures an 'upstream' git remote (if not already present), fetches
+    the latest changes, and merges them into your current branch—preserving
+    all local customizations. Conflicts are reported clearly with instructions
+    to resolve them manually.
+
+    Example usage:
+
+        specify update
+        specify update --dry-run
+        specify update --upstream https://github.com/github/spec-kit.git --branch main
+    """
+    show_banner()
+
+    # 1. Verify we are inside a git repository
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            console.print("[red]Error:[/red] Not inside a git repository.")
+            console.print("Run this command from your fork's project root.")
+            raise typer.Exit(1)
+    except FileNotFoundError:
+        console.print("[red]Error:[/red] git is not installed or not in PATH.")
+        raise typer.Exit(1)
+
+    console.print("[bold]Syncing fork with upstream spec-kit...[/bold]\n")
+
+    # 2. Check for existing upstream remote
+    remote_result = subprocess.run(
+        ["git", "remote", "get-url", "upstream"],
+        capture_output=True,
+        text=True,
+    )
+    upstream_exists = remote_result.returncode == 0
+    existing_upstream_url = remote_result.stdout.strip() if upstream_exists else None
+
+    if upstream_exists and reset_upstream:
+        console.print(f"[cyan]Updating upstream remote URL to:[/cyan] {upstream_url}")
+        subprocess.run(
+            ["git", "remote", "set-url", "upstream", upstream_url],
+            check=True,
+            capture_output=True,
+        )
+        console.print(f"[green]✓[/green] Upstream remote updated to {upstream_url}\n")
+    elif upstream_exists:
+        if existing_upstream_url and existing_upstream_url != upstream_url:
+            console.print(
+                f"[yellow]Note:[/yellow] Existing upstream remote points to: {existing_upstream_url}"
+            )
+            console.print(
+                f"  Your --upstream flag specifies: {upstream_url}"
+            )
+            console.print(
+                "  Using the existing remote. Pass --reset-upstream to change it.\n"
+            )
+        else:
+            console.print(f"[green]✓[/green] Upstream remote already configured: {existing_upstream_url}\n")
+    else:
+        console.print(f"[cyan]Adding upstream remote:[/cyan] {upstream_url}")
+        try:
+            subprocess.run(
+                ["git", "remote", "add", "upstream", upstream_url],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            console.print(f"[green]✓[/green] Added upstream remote → {upstream_url}\n")
+        except subprocess.CalledProcessError as e:
+            console.print(f"[red]Error:[/red] Failed to add upstream remote: {e.stderr.strip()}")
+            raise typer.Exit(1)
+
+    # 3. Fetch upstream
+    console.print(f"[cyan]Fetching upstream/{branch}...[/cyan]")
+    try:
+        fetch_result = subprocess.run(
+            ["git", "fetch", "upstream"],
+            capture_output=True,
+            text=True,
+        )
+        if fetch_result.returncode != 0:
+            console.print(f"[red]Error:[/red] Failed to fetch upstream.\n{fetch_result.stderr.strip()}")
+            console.print("\nPossible causes:")
+            console.print("  • No internet connection")
+            console.print("  • Upstream URL is incorrect (use --upstream to change it)")
+            console.print("  • Repository is private and requires authentication")
+            raise typer.Exit(1)
+        console.print(f"[green]✓[/green] Fetch complete\n")
+    except FileNotFoundError:
+        console.print("[red]Error:[/red] git is not installed or not in PATH.")
+        raise typer.Exit(1)
+
+    # 4. Get list of commits that would be merged
+    upstream_ref = f"upstream/{branch}"
+    log_result = subprocess.run(
+        ["git", "log", f"HEAD..{upstream_ref}", "--oneline", "--no-color"],
+        capture_output=True,
+        text=True,
+    )
+    incoming_commits = [line for line in log_result.stdout.strip().splitlines() if line]
+
+    if not incoming_commits:
+        console.print("[green]✓[/green] Already up to date with upstream. Nothing to merge.")
+        raise typer.Exit(0)
+
+    # 5. Show incoming commits
+    commit_panel = Panel(
+        "\n".join(f"  {commit}" for commit in incoming_commits[:20])
+        + ("\n  ..." if len(incoming_commits) > 20 else ""),
+        title=f"[bold cyan]{len(incoming_commits)} incoming commit(s) from {upstream_ref}[/bold cyan]",
+        border_style="cyan",
+        padding=(1, 2),
+    )
+    console.print(commit_panel)
+
+    if dry_run:
+        console.print("\n[yellow]Dry run — no changes applied.[/yellow]")
+        console.print(f"Run without --dry-run to merge these {len(incoming_commits)} commit(s).")
+        raise typer.Exit(0)
+
+    console.print()
+
+    # 6. Attempt merge
+    console.print(f"[cyan]Merging {upstream_ref} into current branch...[/cyan]")
+    merge_result = subprocess.run(
+        ["git", "merge", upstream_ref, "--no-edit"],
+        capture_output=True,
+        text=True,
+    )
+
+    if merge_result.returncode == 0:
+        # Success
+        console.print(f"[green]✓[/green] Merge successful! {len(incoming_commits)} commit(s) integrated.\n")
+
+        # Show which files changed
+        diff_result = subprocess.run(
+            ["git", "diff", "--name-only", "HEAD~1", "HEAD"],
+            capture_output=True,
+            text=True,
+        )
+        changed_files = [f for f in diff_result.stdout.strip().splitlines() if f]
+        if changed_files:
+            files_display = "\n".join(f"  • {f}" for f in changed_files[:30])
+            if len(changed_files) > 30:
+                files_display += f"\n  • ...and {len(changed_files) - 30} more"
+            console.print(Panel(
+                files_display,
+                title="[bold green]Files Updated[/bold green]",
+                border_style="green",
+                padding=(1, 2),
+            ))
+
+        console.print("\n[bold]Next step:[/bold]")
+        console.print("  Review the changes above, then push your fork:")
+        console.print("  [bold]git push origin[/bold]\n")
+    else:
+        # Conflicts
+        conflict_output = merge_result.stdout + merge_result.stderr
+
+        # Find conflicted files
+        status_result = subprocess.run(
+            ["git", "diff", "--name-only", "--diff-filter=U"],
+            capture_output=True,
+            text=True,
+        )
+        conflicted_files = [f for f in status_result.stdout.strip().splitlines() if f]
+
+        console.print("[red]✗[/red] Merge has conflicts that need manual resolution.\n")
+
+        if conflicted_files:
+            conflict_display = "\n".join(f"  ⚡ {f}" for f in conflicted_files)
+            console.print(Panel(
+                conflict_display,
+                title="[bold red]Conflicted Files[/bold red]",
+                border_style="red",
+                padding=(1, 2),
+            ))
+
+        console.print("\n[bold]To resolve conflicts:[/bold]")
+        console.print("  1. Open each conflicted file and resolve the markers (<<<, ===, >>>)")
+        console.print("  2. Stage the resolved files:  [bold]git add <file>[/bold]")
+        console.print("  3. Complete the merge:        [bold]git commit[/bold]")
+        console.print("\n[bold]To abort and start over:[/bold]")
+        console.print("  [bold]git merge --abort[/bold]\n")
+        raise typer.Exit(1)
+
+
 # ===== Extension Commands =====
 
 extension_app = typer.Typer(

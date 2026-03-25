@@ -1,6 +1,13 @@
 ---
+name: speckit-smart-push
 description: Analyze changes, group into logical commits, and push to remote.
+compatibility: Requires spec-kit project structure with .specify/ directory
+metadata:
+  author: github-spec-kit
+  source: templates/commands/smart-push.md
 ---
+
+# Speckit Smart-Push Skill
 
 1. Analyze unstaged and staged changes
    // turbo
