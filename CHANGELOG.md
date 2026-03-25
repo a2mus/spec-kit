@@ -7,6 +7,32 @@ Recent changes to the Specify CLI and templates are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-03-25
+
+### Added
+
+- **`specify update` command**: Smart upstream sync for forks
+  - Configures an `upstream` git remote pointing to `https://github.com/github/spec-kit.git`
+  - Fetches and merges upstream changes while preserving local customizations
+  - `--dry-run` flag to preview incoming commits before applying
+  - `--reset-upstream` flag to update the remote URL if it changes
+  - Clear conflict reporting with actionable resolution instructions
+  - Shows list of updated files after a successful merge
+
+- **Brainstorm-First Workflow**: Documented the interactive greenfield development path
+  - Added complete guide in `spec-driven.md`: `brainstorm` → `uidesign` → `initiate` → `specify`
+  - Comparison table between feature-first and brainstorm-first workflows
+  - Step-by-step walkthrough with use-cases for each approach
+
+### Changed
+
+- `spec-driven.md` now positions the brainstorm-first workflow as a primary entry point for new projects
+
+### Removed
+
+- Deleted redundant root-level files (`smart-push.md`, `speckit-progress.md`); canonical versions remain in `.agent/workflows/`
+- Removed temporary `.tmp_ecc/` directory
+
 ## [0.1.9] - 2026-03-02
 
 ### Added
