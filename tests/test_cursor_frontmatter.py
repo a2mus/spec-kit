@@ -33,6 +33,20 @@ requires_git = pytest.mark.skipif(
     reason="git is not installed",
 )
 
+def _has_working_bash():
+    import sys
+    if sys.platform == "win32":
+        git_bash = shutil.which("bash", path=os.environ.get("PATH", "") + r";C:\Program Files\Git\bin")
+        if git_bash and "system32" not in git_bash.lower():
+            return True
+        return False
+    return shutil.which("bash") is not None
+
+requires_bash = pytest.mark.skipif(
+    not _has_working_bash(),
+    reason="Working bash executable is required for this test",
+)
+
 
 class TestScriptFrontmatterPattern:
     """Static analysis — no git required."""
@@ -73,6 +87,7 @@ class TestScriptFrontmatterPattern:
 
 
 @requires_git
+@requires_bash
 class TestCursorFrontmatterIntegration:
     """Integration tests using a real git repo."""
 

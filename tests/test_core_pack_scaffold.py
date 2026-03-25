@@ -53,6 +53,15 @@ _RELEASE_SCRIPT = _REPO_ROOT / ".github" / "workflows" / "scripts" / "create-rel
 
 def _find_bash() -> str | None:
     """Return the path to a usable bash on this machine, or None."""
+    # On Windows, system32\bash.exe is WSL, which fails with Windows paths in this test.
+    import sys
+    if sys.platform == "win32":
+        # Check specifically for Git Bash, which handles Windows paths properly
+        git_bash = shutil.which("bash", path=os.environ.get("PATH") + r";C:\Program Files\Git\bin")
+        if git_bash and "system32" not in git_bash.lower():
+            return git_bash
+        return None
+
     # Prefer PATH lookup so non-standard install locations (Nix, CI) are found.
     on_path = shutil.which("bash")
     if on_path:

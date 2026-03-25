@@ -165,7 +165,7 @@ create_skills() {
 
     # Extract description from frontmatter
     local description
-    description=$(printf '%s\n' "$file_content" | awk '/^description:/ {sub(/^description:[[:space:]]*/, ""); print; exit}')
+    description=$(printf '%s\n' "$file_content" | awk '/^description:/ {sub(/^description:[[:space:]]*/, ""); gsub(/^"|"$/, ""); print; exit}')
     [[ -z "$description" ]] && description="Spec Kit: ${name} workflow"
 
     # Extract script command

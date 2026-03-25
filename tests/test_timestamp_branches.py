@@ -12,6 +12,19 @@ from pathlib import Path
 
 import pytest
 
+def _get_bash():
+    import sys, shutil
+    if sys.platform == "win32":
+        git_bash = shutil.which("bash", path=os.environ.get("PATH", "") + r";C:\Program Files\Git\bin")
+        if git_bash and "system32" not in git_bash.lower():
+            return git_bash
+        return None
+    return shutil.which("bash") or "bash"
+
+BASH_EXE = _get_bash()
+if not BASH_EXE:
+    pytest.skip("Working bash is required for these tests", allow_module_level=True)
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CREATE_FEATURE = PROJECT_ROOT / "scripts" / "bash" / "create-new-feature.sh"
 COMMON_SH = PROJECT_ROOT / "scripts" / "bash" / "common.sh"
@@ -53,7 +66,7 @@ def no_git_dir(tmp_path: Path) -> Path:
 
 def run_script(cwd: Path, *args: str) -> subprocess.CompletedProcess:
     """Run create-new-feature.sh with given args."""
-    cmd = ["bash", "scripts/bash/create-new-feature.sh", *args]
+    cmd = [BASH_EXE, "scripts/bash/create-new-feature.sh", *args]
     return subprocess.run(
         cmd,
         cwd=cwd,
@@ -66,7 +79,7 @@ def source_and_call(func_call: str, env: dict | None = None) -> subprocess.Compl
     """Source common.sh and call a function."""
     cmd = f'source "{COMMON_SH}" && {func_call}'
     return subprocess.run(
-        ["bash", "-c", cmd],
+        [BASH_EXE, "-c", cmd],
         capture_output=True,
         text=True,
         env={**os.environ, **(env or {})},
