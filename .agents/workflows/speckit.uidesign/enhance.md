@@ -2,7 +2,7 @@
 description: "Enhance mode for Impeccable UI design workflow. Critiques, audits, normalizes, and polishes existing code."
 handoffs:
   - label: Finalize UI Spec
-    agent: speckit.uidesign-finalize
+    agent: speckit.uidesign/finalize
     prompt: Generate the final UI specification after enhancements are complete.
     send: true
 ---
@@ -14,7 +14,7 @@ handoffs:
 $ARGUMENTS
 ```
 
-*Prerequisite: `.impeccable.md` and existing UI code must exist. If not, inform the user to run `speckit.uidesign-create`.*
+*Prerequisite: `.impeccable.md` and existing UI code must exist. If not, inform the user to run `speckit.uidesign/create`.*
 
 Determine which sub-phase the user wants based on arguments or flow (Critique → Audit → Normalize → Polish). 
 
@@ -63,4 +63,4 @@ The final pass:
 - Keyboard nav & Focus active.
 - Pure grays/blacks/whites tinted smoothly to brand hue.
 
-After Polish, hand off to `speckit.uidesign-finalize`.
+After Polish, hand off to `speckit.uidesign/finalize`.

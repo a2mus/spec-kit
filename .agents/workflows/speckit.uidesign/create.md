@@ -2,7 +2,7 @@
 description: "Create mode for Impeccable UI design workflow. Handles design context, direction, and iterative generation."
 handoffs:
   - label: Finalize UI Spec
-    agent: speckit.uidesign-finalize
+    agent: speckit.uidesign/finalize
     prompt: Generate the final UI specification after design iterations are complete.
     send: true
 ---
@@ -77,4 +77,4 @@ Guide through:
 3. Components & Interactions
 4. Responsiveness
 
-After finalizing iterations, hand off to `speckit.uidesign-finalize` to generate the specification.
+After finalizing iterations, hand off to `speckit.uidesign/finalize` to generate the specification.
