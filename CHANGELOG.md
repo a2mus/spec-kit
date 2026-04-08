@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- Deleted redundant root-level files (`smart-push.md`, `speckit-progress.md`); canonical versions remain in `.agent/workflows/`
+- Deleted redundant root-level files (`smart-push.md`, `speckit-progress.md`); canonical versions remain in `.agents/workflows/`
 - Removed temporary `.tmp_ecc/` directory
 
 ## [0.1.9] - 2026-03-02
@@ -47,7 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Antigravity Workflow Integration**: Added 11 workflow files to `.agent/workflows/` for use as Antigravity slash commands
+- **Antigravity Workflow Integration**: Added 11 workflow files to `.agents/workflows/` for use as Antigravity slash commands
   - **Spec-Kit Core Workflows** (9): `/speckit-analyze`, `/speckit-checklist`, `/speckit-clarify`, `/speckit-constitution`, `/speckit-implement`, `/speckit-plan`, `/speckit-progress`, `/speckit-specify`, `/speckit-tasks`
   - **General Workflows** (2): `/smart-push` (intelligent git commits), `/plan-with-opus` (Architect-Builder planning model)
   - `speckit-implement` generalized to be platform-agnostic (removed Android-specific patterns)
@@ -88,7 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **AI Skills Installation Bug (#1658)**: Fixed `--ai-skills` flag not generating skill files for GitHub Copilot and other agents with non-standard command directory structures
   - Added `commands_subdir` field to `AGENT_CONFIG` to explicitly specify the subdirectory name for each agent
-  - Affected agents now work correctly: copilot (`.github/agents/`), opencode (`.opencode/command/`), windsurf (`.windsurf/workflows/`), codex (`.codex/prompts/`), kilocode (`.kilocode/workflows/`), q (`.amazonq/prompts/`), and agy (`.agent/workflows/`)
+  - Affected agents now work correctly: copilot (`.github/agents/`), opencode (`.opencode/command/`), windsurf (`.windsurf/workflows/`), codex (`.codex/prompts/`), kilocode (`.kilocode/workflows/`), q (`.amazonq/prompts/`), and agy (`.agents/workflows/`)
   - The `install_ai_skills()` function now uses the correct path for all agents instead of assuming `commands/` for everyone
 
 ## [0.1.4] - 2026-02-20

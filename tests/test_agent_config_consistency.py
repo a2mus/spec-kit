@@ -68,14 +68,14 @@ class TestAgentConfigConsistency:
         ps_text = (REPO_ROOT / ".github" / "workflows" / "scripts" / "create-release-packages.ps1").read_text(encoding="utf-8")
 
         assert re.search(r"'shai'\s*\{.*?\.shai/commands", ps_text, re.S) is not None
-        assert re.search(r"'agy'\s*\{.*?\.agent/commands", ps_text, re.S) is not None
+        assert re.search(r"'agy'\s*\{.*?\.agents/workflows", ps_text, re.S) is not None
 
     def test_release_sh_switch_has_shai_and_agy_generation(self):
         """Bash release builder must generate files for shai and agy agents."""
         sh_text = (REPO_ROOT / ".github" / "workflows" / "scripts" / "create-release-packages.sh").read_text(encoding="utf-8")
 
         assert re.search(r"shai\)\s*\n.*?\.shai/commands", sh_text, re.S) is not None
-        assert re.search(r"agy\)\s*\n.*?\.agent/commands", sh_text, re.S) is not None
+        assert re.search(r"agy\)\s*\n.*?\.agents/workflows", sh_text, re.S) is not None
 
     def test_release_scripts_generate_codex_skills(self):
         """Release scripts should generate Codex skills in .agents/skills."""

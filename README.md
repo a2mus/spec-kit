@@ -312,7 +312,7 @@ Skills are placed in the agent's native `skills/` directory inside your project:
 
 | Agent | Skills Directory |
 | ----- | ---------------- |
-| `agy` (Antigravity) | `.agent/skills/` |
+| `agy` (Antigravity) | `.agents/skills/` |
 | `claude` | `.claude/skills/` |
 | `gemini` | `.gemini/skills/` |
 | `cursor-agent` | `.cursor/skills/` |
@@ -323,12 +323,12 @@ Skills are placed in the agent's native `skills/` directory inside your project:
 
 ### Using skills with Antigravity
 
-Antigravity automatically loads skills from `.agent/skills/` when it opens your workspace. Each skill appears as a knowledge set the assistant can draw on during development.
+Antigravity automatically loads skills from `.agents/skills/` when it opens your workspace. Each skill appears as a knowledge set the assistant can draw on during development.
 
 After running `specify init --here --ai agy --ai-skills`, your project will contain:
 
 ```text
-.agent/
+.agents/
 ├── skills/              ← AI Skills (persistent knowledge context)
 │   ├── tdd-workflow/
 │   │   └── SKILL.md
@@ -340,7 +340,7 @@ After running `specify init --here --ai agy --ai-skills`, your project will cont
     └── ...
 ```
 
-> **Skills vs. Workflows**: Skills provide *passive context* the agent loads automatically. Workflows are *slash commands* you invoke explicitly (e.g., `/speckit-plan`). Both are installed in the `.agent/` directory for Antigravity.
+> **Skills vs. Workflows**: Skills provide *passive context* the agent loads automatically. Workflows are *slash commands* you invoke explicitly (e.g., `/speckit-plan`). Both are installed in the `.agents/` directory for Antigravity.
 
 
 After running `specify init`, your AI coding agent will have access to these slash commands for structured development:

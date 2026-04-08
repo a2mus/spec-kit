@@ -255,8 +255,8 @@ AGENT_CONFIG = {
     },
     "agy": {
         "name": "Antigravity",
-        "folder": ".agent/",
-        "commands_subdir": "commands",
+        "folder": ".agents/",
+        "commands_subdir": "workflows",
         "install_url": None,  # IDE-based
         "requires_cli": False,
     },
@@ -1740,7 +1740,7 @@ AGENT_SKILLS_MIGRATIONS = {
         "usage": "specify init <project> --ai agy --ai-skills",
         "interactive_note": (
             "'agy' was selected interactively; enabling [cyan]--ai-skills[/cyan] "
-            "automatically for compatibility (explicit .agent/commands usage is deprecated)."
+            "automatically for compatibility (explicit .agents/workflows usage is deprecated)."
         ),
     },
     "codex": {
