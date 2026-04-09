@@ -44,24 +44,37 @@ def sync_workflows():
     clean_dir(TARGET_TEMPLATES_COMMANDS)
     clean_dir(TARGET_CORE_COMMANDS)
     
-    # We only care about .md files in the root of workflows
-    # or inside specific component folders if needed (flat naming convention)
-    for md_file in SOURCE_WORKFLOWS.glob("*.md"):
-        source_name = md_file.name
-        
-        # Transformation logic:
-        # speckit.uidesign.md -> uidesign.md
-        # speckit.uidesign.agent.md -> uidesign.md
-        target_name = source_name
-        if target_name.startswith("speckit."):
-            target_name = target_name[len("speckit."):]
-        if target_name.endswith(".agent.md"):
-            target_name = target_name[:-len(".agent.md")] + ".md"
+    # Iterate over everything in the source workflows directory
+    for item in SOURCE_WORKFLOWS.iterdir():
+        if item.name.startswith("."):
+            continue
             
-        # Copy to both targets
-        shutil.copy2(md_file, TARGET_TEMPLATES_COMMANDS / target_name)
-        shutil.copy2(md_file, TARGET_CORE_COMMANDS / target_name)
-        print(f"  v {source_name} -> {target_name}")
+        if item.is_file() and item.suffix == ".md":
+            source_name = item.name
+            
+            # Transformation logic for top-level files:
+            # speckit.uidesign.md -> uidesign.md
+            # speckit.uidesign.agent.md -> uidesign.md
+            target_name = source_name
+            if target_name.startswith("speckit."):
+                target_name = target_name[len("speckit."):]
+            if target_name.endswith(".agent.md"):
+                target_name = target_name[:-len(".agent.md")] + ".md"
+                
+            # Copy to both targets
+            shutil.copy2(item, TARGET_TEMPLATES_COMMANDS / target_name)
+            shutil.copy2(item, TARGET_CORE_COMMANDS / target_name)
+            print(f"  v {source_name} -> {target_name}")
+            
+        elif item.is_dir():
+            # Copy entire sub-directories (recursive support for sub-workflows like speckit.uidesign/)
+            target_templates = TARGET_TEMPLATES_COMMANDS / item.name
+            target_core = TARGET_CORE_COMMANDS / item.name
+            
+            shutil.copytree(item, target_templates)
+            shutil.copytree(item, target_core)
+            print(f"  v folder: {item.name}")
+
 
 def sync_skills():
     """Sync skills from .agents/skills/ to target directories."""

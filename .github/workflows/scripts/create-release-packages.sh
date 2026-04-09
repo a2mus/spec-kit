@@ -59,9 +59,14 @@ rewrite_paths() {
 generate_commands() {
   local agent=$1 ext=$2 arg_format=$3 output_dir=$4 script_variant=$5
   mkdir -p "$output_dir"
-  for template in templates/commands/*.md; do
-    [[ -f "$template" ]] || continue
-    local name description script_command agent_script_command body
+  local base_path="templates/commands"
+  while IFS= read -r -d '' template; do
+    local name description script_command agent_script_command body rel_path rel_dir
+    rel_path="${template#$base_path}"
+    rel_path="${rel_path#/}" # Strip leading slash
+    rel_dir=$(dirname "$rel_path")
+    [[ "$rel_dir" == "." ]] && rel_dir=""
+    
     name=$(basename "$template" .md)
 
     # Normalize line endings
@@ -108,16 +113,23 @@ generate_commands() {
     # Apply other substitutions
     body=$(printf '%s\n' "$body" | sed "s/{ARGS}/$arg_format/g" | sed "s/__AGENT__/$agent/g" | rewrite_paths)
 
+    local target_dir="$output_dir"
+    if [[ -n "$rel_dir" ]]; then
+      target_dir="$output_dir/$rel_dir"
+      mkdir -p "$target_dir"
+    fi
+
     case $ext in
       toml)
         body=$(printf '%s\n' "$body" | sed 's/\\/\\\\/g')
-        { echo "description = \"$description\""; echo; echo "prompt = \"\"\""; echo "$body"; echo "\"\"\""; } > "$output_dir/speckit.$name.$ext" ;;
+        { echo "description = \"$description\""; echo; echo "prompt = \"\"\""; echo "$body"; echo "\"\"\""; } > "$target_dir/speckit.$name.$ext" ;;
       md)
-        echo "$body" > "$output_dir/speckit.$name.$ext" ;;
+        echo "$body" > "$target_dir/speckit.$name.$ext" ;;
       agent.md)
-        echo "$body" > "$output_dir/speckit.$name.$ext" ;;
+        echo "$body" > "$target_dir/speckit.$name.$ext" ;;
     esac
-  done
+  done < <(find "$base_path" -name "*.md" -print0)
+
 }
 
 generate_copilot_prompts() {

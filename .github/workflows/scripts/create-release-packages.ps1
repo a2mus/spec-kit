@@ -78,10 +78,12 @@ function New-AgentCommand {
 
     New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
 
-    $templates = Get-ChildItem -Path "templates/commands/*.md" -File -ErrorAction SilentlyContinue
+    $basePath = (Get-Item "templates/commands").FullName
+    $templates = Get-ChildItem -Path "templates/commands" -Filter "*.md" -Recurse -File -ErrorAction SilentlyContinue
 
     foreach ($template in $templates) {
         $name = [System.IO.Path]::GetFileNameWithoutExtension($template.Name)
+        $relativePath = $template.DirectoryName.Replace($basePath, "").TrimStart("\").TrimStart("/")
 
         # Read file content and normalize line endings
         $fileContent = (Get-Content -Path $template.FullName -Raw) -replace "`r`n", "`n"
@@ -160,7 +162,12 @@ function New-AgentCommand {
         $body = Update-Paths -Content $body
 
         # Generate output file based on extension
-        $outputFile = Join-Path $OutputDir "speckit.$name.$Extension"
+        $targetDir = $OutputDir
+        if (-not [string]::IsNullOrWhiteSpace($relativePath)) {
+            $targetDir = Join-Path $OutputDir $relativePath
+            New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+        }
+        $outputFile = Join-Path $targetDir "speckit.$name.$Extension"
 
         switch ($Extension) {
             'toml' {
@@ -176,6 +183,7 @@ function New-AgentCommand {
             }
         }
     }
+
 }
 
 function New-CopilotPrompt {

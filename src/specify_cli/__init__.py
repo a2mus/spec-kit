@@ -106,12 +106,12 @@ def _format_rate_limit_error(status_code: int, headers: httpx.Headers, url: str)
     if rate_info:
         lines.append("[bold]Rate Limit Information:[/bold]")
         if "limit" in rate_info:
-            lines.append(f"  • Rate Limit: {rate_info['limit']} requests/hour")
+            lines.append(f"  * Rate Limit: {rate_info['limit']} requests/hour")
         if "remaining" in rate_info:
-            lines.append(f"  • Remaining: {rate_info['remaining']}")
+            lines.append(f"  * Remaining: {rate_info['remaining']}")
         if "reset_local" in rate_info:
             reset_str = rate_info["reset_local"].strftime("%Y-%m-%d %H:%M:%S %Z")
-            lines.append(f"  • Resets at: {reset_str}")
+            lines.append(f"  * Resets at: {reset_str}")
         if "retry_after_seconds" in rate_info:
             lines.append(f"  • Retry after: {rate_info['retry_after_seconds']} seconds")
         lines.append("")
@@ -347,12 +347,14 @@ SCRIPT_TYPE_CHOICES = {"sh": "POSIX Shell (bash/zsh)", "ps": "PowerShell"}
 CLAUDE_LOCAL_PATH = Path.home() / ".claude" / "local" / "claude"
 
 BANNER = """
-███████╗██████╗ ███████╗ ██████╗██╗███████╗██╗   ██╗
-██╔════╝██╔══██╗██╔════╝██╔════╝██║██╔════╝╚██╗ ██╔╝
-███████╗██████╔╝█████╗  ██║     ██║█████╗   ╚████╔╝ 
-╚════██║██╔═══╝ ██╔══╝  ██║     ██║██╔══╝    ╚██╔╝  
-███████║██║     ███████╗╚██████╗██║██║        ██║   
-╚══════╝╚═╝     ╚══════╝ ╚═════╝╚═╝╚═╝        ╚═╝   
+   _____                           _    __          
+  / ____|                         (_)  / /          
+ | (___   _ __    ___   ___  _  __ _  / /__  _   _ 
+  \___ \ | '_ \  / _ \ / __|| |/ /| |/ // _ \| | | |
+  ____) || |_) ||  __/| (__ |   < | |/ /|  __/| |_| |
+ |_____/ | .__/  \___| \___||_|\_\|_/_/  \___| \__, |
+         | |                                    __/ |
+         |_|                                   |___/ 
 """
 
 TAGLINE = "GitHub Spec Kit - Spec-Driven Development Toolkit"
@@ -413,17 +415,17 @@ class StepTracker:
 
             status = step["status"]
             if status == "done":
-                symbol = "[green]●[/green]"
+                symbol = "[green]v[/green]"
             elif status == "pending":
-                symbol = "[green dim]○[/green dim]"
+                symbol = "[dim]- [/dim]"
             elif status == "running":
-                symbol = "[cyan]○[/cyan]"
+                symbol = "[cyan]> [/cyan]"
             elif status == "error":
-                symbol = "[red]●[/red]"
+                symbol = "[red]x[/red]"
             elif status == "skipped":
-                symbol = "[yellow]○[/yellow]"
+                symbol = "[yellow]s[/yellow]"
             else:
-                symbol = " "
+                symbol = "  "
 
             if status == "pending":
                 # Entire line light gray (pending)
@@ -489,9 +491,9 @@ def select_with_arrows(options: dict, prompt_text: str = "Select an option", def
 
         for i, key in enumerate(option_keys):
             if i == selected_index:
-                table.add_row("▶", f"[cyan]{key}[/cyan] [dim]({options[key]})[/dim]")
+                table.add_row("->", f"[cyan]{key}[/cyan] [dim]({options[key]})[/dim]")
             else:
-                table.add_row(" ", f"[cyan]{key}[/cyan] [dim]({options[key]})[/dim]")
+                table.add_row("  ", f"[cyan]{key}[/cyan] [dim]({options[key]})[/dim]")
 
         table.add_row("", "")
         table.add_row("", "[dim]Use ↑/↓ to navigate, Enter to select, Esc to cancel[/dim]")
@@ -1285,10 +1287,10 @@ def scaffold_from_core_pack(
             # Set up a repo-like directory layout in the temp dir so the
             # release script finds templates/commands/, scripts/, etc.
             tmpl_cmds = tmp / "templates" / "commands"
-            tmpl_cmds.mkdir(parents=True)
-            for f in commands_dir.iterdir():
-                if f.is_file():
-                    shutil.copy2(f, tmpl_cmds / f.name)
+            # If commands_dir exists, copy the whole thing recursively
+            if commands_dir.exists():
+                shutil.copytree(commands_dir, tmpl_cmds, dirs_exist_ok=True)
+
 
             # Page templates (needed for vscode-settings.json etc.)
             if templates_dir.is_dir():
@@ -4427,7 +4429,7 @@ def extension_enable(
                     hook["enabled"] = True
         hook_executor.save_project_config(config)
 
-    console.print(f"[green]✓[/green] Extension '{display_name}' enabled")
+    console.print(f"[green]v[/green] Extension '{display_name}' enabled")
 
 
 @extension_app.command("disable")
@@ -4474,7 +4476,7 @@ def extension_disable(
                     hook["enabled"] = False
         hook_executor.save_project_config(config)
 
-    console.print(f"[green]✓[/green] Extension '{display_name}' disabled")
+    console.print(f"[green]v[/green] Extension '{display_name}' disabled")
     console.print("\nCommands will no longer be available. Hooks will not execute.")
     console.print(f"To re-enable: specify extension enable {extension_id}")
 
@@ -4526,7 +4528,7 @@ def extension_set_priority(
     # Update priority
     manager.registry.update(extension_id, {"priority": priority})
 
-    console.print(f"[green]✓[/green] Extension '{display_name}' priority changed: {old_priority} → {priority}")
+    console.print(f"[green]v[/green] Extension '{display_name}' priority changed: {old_priority} -> {priority}")
     console.print("\n[dim]Lower priority = higher precedence in template resolution[/dim]")
 
 
