@@ -1297,6 +1297,14 @@ def scaffold_from_core_pack(
                     if f.is_file():
                         shutil.copy2(f, tmpl_root / f.name)
 
+            # Skill templates
+            if core and (core / "skills").is_dir():
+                tmpl_skills = tmp / "templates" / "skills"
+                tmpl_skills.mkdir(parents=True, exist_ok=True)
+                for f in (core / "skills").iterdir():
+                    if f.is_file():
+                        shutil.copy2(f, tmpl_skills / f.name)
+
             # Scripts (bash/ and powershell/)
             for subdir in ("bash", "powershell"):
                 src = scripts_dir / subdir
@@ -1579,10 +1587,8 @@ def install_ai_skills(
     else:
         templates_dir = project_path / commands_subdir
 
-    # Only consider speckit.*.md templates so that user-authored command
-    # files (e.g. custom slash commands, agent files) coexisting in the
-    # same commands directory are not incorrectly converted into skills.
-    template_glob = "speckit.*.md"
+    # Consider both prefix-less and speckit. prefixed templates.
+    template_glob = "*.md"
 
     if not templates_dir.exists() or not any(templates_dir.glob(template_glob)):
         # Fallback: try the repo-relative path (for running from source checkout)
@@ -1612,6 +1618,18 @@ def install_ai_skills(
     # Resolve the correct skills directory for this agent
     skills_dir = _get_skills_dir(project_path, selected_ai)
     skills_dir.mkdir(parents=True, exist_ok=True)
+
+    # Locate pre-made skill templates (Source of Truth)
+    core = _locate_core_pack()
+    premade_skills_dir = None
+    if core and (core / "skills").is_dir():
+        premade_skills_dir = core / "skills"
+    else:
+        # Development fallback: try repo-relative templates/skills/
+        script_dir = Path(__file__).parent.parent.parent
+        dev_skills_dir = script_dir / "templates" / "skills"
+        if dev_skills_dir.is_dir():
+            premade_skills_dir = dev_skills_dir
 
     if tracker:
         tracker.start("ai-skills")
@@ -1656,47 +1674,51 @@ def install_ai_skills(
             # Create skill directory (additive — never removes existing content)
             skill_dir = skills_dir / skill_name
             skill_dir.mkdir(parents=True, exist_ok=True)
-
-            # Select the best description available
-            original_desc = frontmatter.get("description", "")
-            enhanced_desc = SKILL_DESCRIPTIONS.get(command_name, original_desc or f"Spec-kit workflow command: {command_name}")
-
-            # Build SKILL.md following agentskills.io spec
-            # Use yaml.safe_dump to safely serialise the frontmatter and
-            # avoid YAML injection from descriptions containing colons,
-            # quotes, or newlines.
-            # Normalize source filename for metadata — strip speckit. prefix
-            # so it matches the canonical templates/commands/<cmd>.md path.
-            source_name = command_file.name
-            if source_name.startswith("speckit."):
-                source_name = source_name[len("speckit."):]
-            if source_name.endswith(".agent.md"):
-                source_name = source_name[:-len(".agent.md")] + ".md"
-
-            frontmatter_data = {
-                "name": skill_name,
-                "description": enhanced_desc,
-                "compatibility": "Requires spec-kit project structure with .specify/ directory",
-                "metadata": {
-                    "author": "github-spec-kit",
-                    "source": f"templates/commands/{source_name}",
-                },
-            }
-            frontmatter_text = yaml.safe_dump(frontmatter_data, sort_keys=False).strip()
-            skill_content = (
-                f"---\n"
-                f"{frontmatter_text}\n"
-                f"---\n\n"
-                f"# Speckit {command_name.title()} Skill\n\n"
-                f"{body}\n"
-            )
-
             skill_file = skill_dir / "SKILL.md"
-            if skill_file.exists():
-                if not overwrite_existing:
-                    # Default behavior: do not overwrite user-customized skills on re-runs
-                    skipped_count += 1
-                    continue
+
+            if skill_file.exists() and not overwrite_existing:
+                # Default behavior: do not overwrite user-customized skills on re-runs
+                skipped_count += 1
+                continue
+
+            # Check for pre-made high-quality SKILL.md in core_pack/skills/ or templates/skills/
+            skill_content = None
+            if premade_skills_dir:
+                # Skill folders are named after the command (e.g. uidesign/SKILL.md)
+                candidate = premade_skills_dir / command_name / "SKILL.md"
+                if candidate.exists():
+                    skill_content = candidate.read_text(encoding="utf-8")
+
+            if not skill_content:
+                # Select the best description available
+                original_desc = frontmatter.get("description", "")
+                enhanced_desc = SKILL_DESCRIPTIONS.get(command_name, original_desc or f"Spec-kit workflow command: {command_name}")
+
+                # Build SKILL.md following agentskills.io spec
+                source_name = command_file.name
+                if source_name.startswith("speckit."):
+                    source_name = source_name[len("speckit."):]
+                if source_name.endswith(".agent.md"):
+                    source_name = source_name[:-len(".agent.md")] + ".md"
+
+                frontmatter_data = {
+                    "name": skill_name,
+                    "description": enhanced_desc,
+                    "compatibility": "Requires spec-kit project structure with .specify/ directory",
+                    "metadata": {
+                        "author": "github-spec-kit",
+                        "source": f"templates/commands/{source_name}",
+                    },
+                }
+                frontmatter_text = yaml.safe_dump(frontmatter_data, sort_keys=False).strip()
+                skill_content = (
+                    f"---\n"
+                    f"{frontmatter_text}\n"
+                    f"---\n\n"
+                    f"# Speckit {command_name.title()} Skill\n\n"
+                    f"{body}\n"
+                )
+
             skill_file.write_text(skill_content, encoding="utf-8")
             installed_count += 1
 

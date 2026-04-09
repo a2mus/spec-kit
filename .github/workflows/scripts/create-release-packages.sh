@@ -205,17 +205,23 @@ create_skills() {
     local template_body
     template_body=$(printf '%s\n' "$body" | awk '/^---/{p++; if(p==2){found=1; next}} found')
 
-    {
-      printf -- '---\n'
-      printf 'name: "%s"\n' "$skill_name"
-      printf 'description: "%s"\n' "$description"
-      printf 'compatibility: "%s"\n' "Requires spec-kit project structure with .specify/ directory"
-      printf -- 'metadata:\n'
-      printf '  author: "%s"\n' "github-spec-kit"
-      printf '  source: "%s"\n' "templates/commands/${name}.md"
-      printf -- '---\n\n'
-      printf '%s\n' "$template_body"
-    } > "$skill_dir/SKILL.md"
+    # Check for pre-made high-quality SKILL.md
+    local premade_skill_path="templates/skills/${name}/SKILL.md"
+    if [[ -f "$premade_skill_path" ]]; then
+      cat "$premade_skill_path" > "$skill_dir/SKILL.md"
+    else
+      {
+        printf -- '---\n'
+        printf 'name: "%s"\n' "$skill_name"
+        printf 'description: "%s"\n' "$description"
+        printf 'compatibility: "%s"\n' "Requires spec-kit project structure with .specify/ directory"
+        printf -- 'metadata:\n'
+        printf '  author: "%s"\n' "github-spec-kit"
+        printf '  source: "%s"\n' "templates/commands/${name}.md"
+        printf -- '---\n\n'
+        printf '%s\n' "$template_body"
+      } > "$skill_dir/SKILL.md"
+    fi
   done
 }
 

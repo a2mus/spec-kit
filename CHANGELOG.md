@@ -7,7 +7,23 @@ Recent changes to the Specify CLI and templates are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2026-03-25
+## [0.5.0] - 2026-04-09
+
+### Added
+
+- **Live Asset Synchronization**: Automated the sync between `.agents/` source of truth and CLI distribution templates.
+  - New `scripts/sync-assets.py` for repository maintenance.
+  - CLI `install_ai_skills` now supports pre-made high-quality skill templates from `templates/skills/`.
+  - Offline `specify init` now bundles latest workflows and skills via `core_pack`.
+- **Flat Naming Convention Support**: CLI now handles prefix-less workflow files (e.g., `uidesign.md`) for more natural integration.
+
+### Changed
+
+- Updated `scaffold_from_core_pack` to include the `skills/` directory for robust offline project initiation.
+- All release packages now include the latest "Impeccable Edition" workflows and refined agent skills.
+
+## [0.4.2] - 2026-04-01
+...
 
 ### Added
 

@@ -289,7 +289,12 @@ function New-Skills {
             if ($inBody) { $templateBody += "$line`n" }
         }
 
-        $skillContent = "---`nname: `"$skillName`"`ndescription: `"$description`"`ncompatibility: `"Requires spec-kit project structure with .specify/ directory`"`nmetadata:`n  author: `"github-spec-kit`"`n  source: `"templates/commands/$name.md`"`n---`n`n$templateBody"
+        $premadeSkillPath = Join-Path "templates/skills" $name "SKILL.md"
+        if (Test-Path $premadeSkillPath) {
+            $skillContent = Get-Content -Path $premadeSkillPath -Raw
+        } else {
+            $skillContent = "---`nname: `"$skillName`"`ndescription: `"$description`"`ncompatibility: `"Requires spec-kit project structure with .specify/ directory`"`nmetadata:`n  author: `"github-spec-kit`"`n  source: `"templates/commands/$name.md`"`n---`n`n$templateBody"
+        }
         Set-Content -Path (Join-Path $skillDir "SKILL.md") -Value $skillContent -NoNewline
     }
 }
