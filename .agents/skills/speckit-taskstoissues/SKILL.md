@@ -8,8 +8,6 @@ metadata:
   source: templates/commands/taskstoissues.md
 ---
 
-# Speckit Taskstoissues Skill
-
 ## User Input
 
 ```text

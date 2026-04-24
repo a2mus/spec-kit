@@ -9,8 +9,6 @@ metadata:
   source: templates/commands/plan.md
 ---
 
-# Speckit Plan Skill
-
 ## User Input
 
 ```text

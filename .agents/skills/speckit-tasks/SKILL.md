@@ -9,8 +9,6 @@ metadata:
   source: templates/commands/tasks.md
 ---
 
-# Speckit Tasks Skill
-
 ## User Input
 
 ```text

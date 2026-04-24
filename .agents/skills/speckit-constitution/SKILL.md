@@ -9,8 +9,6 @@ metadata:
   source: templates/commands/constitution.md
 ---
 
-# Speckit Constitution Skill
-
 ## User Input
 
 ```text

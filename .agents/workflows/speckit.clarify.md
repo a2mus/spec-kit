@@ -5,6 +5,7 @@ handoffs:
     agent: speckit.plan
     prompt: Create a plan for the spec. I am building with...
 ---
+
 ## User Input
 
 ```text

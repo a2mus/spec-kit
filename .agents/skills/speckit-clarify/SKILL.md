@@ -9,8 +9,6 @@ metadata:
   source: templates/commands/clarify.md
 ---
 
-# Speckit Clarify Skill
-
 ## User Input
 
 ```text

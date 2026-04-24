@@ -9,6 +9,7 @@ handoffs:
     agent: speckit.checklist
     prompt: Create a checklist for the following domain...
 ---
+
 ## User Input
 
 ```text

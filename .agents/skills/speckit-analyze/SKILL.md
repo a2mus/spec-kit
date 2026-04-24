@@ -9,8 +9,6 @@ metadata:
   source: templates/commands/analyze.md
 ---
 
-# Speckit Analyze Skill
-
 ## User Input
 
 ```text

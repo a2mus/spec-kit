@@ -10,8 +10,6 @@ metadata:
   source: templates/commands/specify.md
 ---
 
-# Speckit Specify Skill
-
 ## User Input
 
 ```text

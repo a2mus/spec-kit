@@ -9,6 +9,7 @@ handoffs:
     prompt: Clarify specification requirements
     send: true
 ---
+
 ## User Input
 
 ```text

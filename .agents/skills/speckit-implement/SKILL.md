@@ -9,8 +9,6 @@ metadata:
   source: templates/commands/implement.md
 ---
 
-# Speckit Implement Skill
-
 ## User Input
 
 ```text
