@@ -168,9 +168,10 @@ For each core command listed in Category B:
    git commit -m "chore: sync spec-kit infrastructure with upstream (github/spec-kit)"
    ```
 
-3. Push to the current branch on origin:
+3. Push to your personal spec-kit fork:
    ```bash
-   git push origin HEAD
+   git remote add fork https://github.com/a2mus/spec-kit.git || true
+   git push fork HEAD
    ```
 
 ### Step 9: Report Results
