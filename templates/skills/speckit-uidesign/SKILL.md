@@ -1,18 +1,15 @@
 ---
-description: "UI design specification workflow with AI-generated mockup prompts. Define the visual interface through iterative mockup refinement."
-handoffs:
-  - label: Generate Constitution
-    agent: speckit.initiate
-    prompt: Generate the project constitution from the product and UI specifications.
-    send: true
-  - label: Refine Product Spec
-    agent: speckit.brainstorm
-    prompt: Revisit the product specification to align with UI decisions.
+name: speckit-uidesign
+description: UI design specification workflow with AI-generated mockup prompts. Use
+  after brainstorm to define the visual interface. Generates ui-spec.md with layout,
+  components, styling, and interaction patterns.
+compatibility: Requires spec-kit project structure with .specify/ directory
+metadata:
+  author: github-spec-kit
+  source: templates/commands/uidesign.md
 ---
 
-> [!IMPORTANT]
-> **Leverage Project Skills**: Before performing any task, scan the project's available skills (typically in `.agent/skills/` or equivalent agent-specific skill directories). If a skill exists that is relevant to the work at hand, read its `SKILL.md` and follow its instructions to complete the task. Only fall back to your own general knowledge when no applicable skill is available or when the task is straightforward enough that a skill lookup would be unnecessary.
-
+# Speckit Uidesign Skill
 
 ## User Input
 
