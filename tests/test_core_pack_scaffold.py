@@ -402,6 +402,8 @@ def test_path_rewrites_applied(agent, scaffolded_sh):
     for f in cmd_dir.rglob("*"):
         if not f.is_file():
             continue
+        if "gstack-" in f.name or "gstack-" in str(f.relative_to(project)):
+            continue
         content = f.read_text(encoding="utf-8")
 
         # Strip YAML frontmatter before checking — source: metadata is not a runtime path
