@@ -35,7 +35,7 @@ Detect the operating mode automatically:
 
 | Has `.impeccable.md` | Has UI Code | Has Spec | → Mode |
 |:---:|:---:|:---:|---|
-| ❌ | ❌ | ❌ | **Error**: Instruct to run `/speckit.brainstorm` first |
+| ❌ | ❌ | ❌ | **Error**: Instruct to run `__SPECKIT_COMMAND_BRAINSTORM__` first |
 | ❌ | ❌ | ✅ | **Create Mode** — hand off to `speckit.uidesign/create` |
 | ❌ | ✅ | ✅ | **Create Mode** — hand off to `speckit.uidesign/create` |
 | ✅ | ❌ | ✅ | **Create Mode** — hand off to `speckit.uidesign/create` |

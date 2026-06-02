@@ -99,10 +99,7 @@ class SkillsIntegrationTests:
         created = i.setup(tmp_path, m)
         skill_files = [f for f in created if "scripts" not in f.parts]
 
-        expected_commands = {
-            "analyze", "checklist", "clarify", "constitution",
-            "implement", "plan", "specify", "tasks", "taskstoissues",
-        }
+        expected_commands = set(self._SKILL_COMMANDS)
 
         # Derive command names from the skill directory names
         actual_commands = set()
@@ -390,12 +387,11 @@ class SkillsIntegrationTests:
         assert len(skills_opts) == 1
         assert skills_opts[0].is_flag is True
 
-    # -- Complete file inventory ------------------------------------------
-
-    _SKILL_COMMANDS = [
-        "analyze", "checklist", "clarify", "constitution",
-        "implement", "plan", "specify", "tasks", "taskstoissues",
-    ]
+    import pathlib as _pathlib
+    _proj_root = _pathlib.Path(__file__).resolve().parents[2]
+    _SKILL_COMMANDS = sorted(
+        [p.stem for p in (_proj_root / "templates" / "commands").glob("*.md")]
+    )
 
     def _expected_files(self, script_variant: str) -> list[str]:
         """Build the full expected file list for a given script variant."""
@@ -403,9 +399,13 @@ class SkillsIntegrationTests:
         skills_prefix = i.config["folder"].rstrip("/") + "/" + i.config.get("commands_subdir", "skills")
 
         files = []
-        # Skill files (core commands)
-        for cmd in self._SKILL_COMMANDS:
-            files.append(f"{skills_prefix}/speckit-{cmd}/SKILL.md")
+        # Skill files (from templates/skills/ directory recursively)
+        skills_dir = self._proj_root / "templates" / "skills"
+        if skills_dir.is_dir():
+            for p in skills_dir.rglob("*"):
+                if p.is_file():
+                    rel_p = p.relative_to(skills_dir).as_posix()
+                    files.append(f"{skills_prefix}/{rel_p}")
         # Extension-installed skill (agent-context)
         files.append(f"{skills_prefix}/speckit-agent-context-update/SKILL.md")
         # Integration metadata

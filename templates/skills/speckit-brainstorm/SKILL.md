@@ -21,7 +21,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Outline
 
-You are running an **interactive product brainstorming session** with the developer. Your goal is to transform a rough product idea into a comprehensive Product Requirements Document — **without any UI/UX details** (those come later via `/speckit.uidesign`).
+You are running an **interactive product brainstorming session** with the developer. Your goal is to transform a rough product idea into a comprehensive Product Requirements Document — **without any UI/UX details** (those come later via `__SPECKIT_COMMAND_UIDESIGN__`).
 
 Follow this execution flow:
 
@@ -291,7 +291,7 @@ After confirming all choices, compile the final Product Requirements Document wi
 3. Report completion with:
    - Summary of key decisions
    - File path
-   - Recommended next step: run `/speckit.uidesign` to define the UI
+   - Recommended next step: run `__SPECKIT_COMMAND_UIDESIGN__` to define the UI
 
 ## Quick Guidelines
 

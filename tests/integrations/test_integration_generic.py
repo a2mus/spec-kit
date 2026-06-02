@@ -288,17 +288,13 @@ class TestGenericIntegration:
             p.relative_to(project).as_posix()
             for p in project.rglob("*") if p.is_file()
         )
+        import pathlib
+        _proj_root = pathlib.Path(__file__).resolve().parents[2]
+        stems = sorted(
+            [p.stem for p in (_proj_root / "templates" / "commands").glob("*.md")]
+        )
         expected = sorted([
             "AGENTS.md",
-            ".myagent/commands/speckit.analyze.md",
-            ".myagent/commands/speckit.checklist.md",
-            ".myagent/commands/speckit.clarify.md",
-            ".myagent/commands/speckit.constitution.md",
-            ".myagent/commands/speckit.implement.md",
-            ".myagent/commands/speckit.plan.md",
-            ".myagent/commands/speckit.specify.md",
-            ".myagent/commands/speckit.tasks.md",
-            ".myagent/commands/speckit.taskstoissues.md",
             ".specify/extensions.yml",
             ".specify/extensions/.registry",
             ".specify/extensions/agent-context/README.md",
@@ -324,7 +320,7 @@ class TestGenericIntegration:
             ".specify/templates/tasks-template.md",
             ".specify/workflows/speckit/workflow.yml",
             ".specify/workflows/workflow-registry.json",
-        ])
+        ] + [f".myagent/commands/speckit.{stem}.md" for stem in stems])
         assert actual == expected, (
             f"Missing: {sorted(set(expected) - set(actual))}\n"
             f"Extra: {sorted(set(actual) - set(expected))}"
@@ -352,17 +348,13 @@ class TestGenericIntegration:
             p.relative_to(project).as_posix()
             for p in project.rglob("*") if p.is_file()
         )
+        import pathlib
+        _proj_root = pathlib.Path(__file__).resolve().parents[2]
+        stems = sorted(
+            [p.stem for p in (_proj_root / "templates" / "commands").glob("*.md")]
+        )
         expected = sorted([
             "AGENTS.md",
-            ".myagent/commands/speckit.analyze.md",
-            ".myagent/commands/speckit.checklist.md",
-            ".myagent/commands/speckit.clarify.md",
-            ".myagent/commands/speckit.constitution.md",
-            ".myagent/commands/speckit.implement.md",
-            ".myagent/commands/speckit.plan.md",
-            ".myagent/commands/speckit.specify.md",
-            ".myagent/commands/speckit.tasks.md",
-            ".myagent/commands/speckit.taskstoissues.md",
             ".specify/extensions.yml",
             ".specify/extensions/.registry",
             ".specify/extensions/agent-context/README.md",
@@ -388,7 +380,7 @@ class TestGenericIntegration:
             ".specify/templates/tasks-template.md",
             ".specify/workflows/speckit/workflow.yml",
             ".specify/workflows/workflow-registry.json",
-        ])
+        ] + [f".myagent/commands/speckit.{stem}.md" for stem in stems])
         assert actual == expected, (
             f"Missing: {sorted(set(expected) - set(actual))}\n"
             f"Extra: {sorted(set(actual) - set(expected))}"

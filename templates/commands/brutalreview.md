@@ -235,7 +235,7 @@ Create comprehensive markdown report at `.specify/reviews/brutal-review-[YYYY-MM
 
 ## Next Actions
 - [ ] Address critical security flaws before any production deployment
-- [ ] Run `/speckit.implement` to fix ship-blocking issues
+- [ ] Run `__SPECKIT_COMMAND_IMPLEMENT__` to fix ship-blocking issues
 - [ ] Create checklist for improvement proposals
 - [ ] Schedule follow-up review in 2 weeks
 ```

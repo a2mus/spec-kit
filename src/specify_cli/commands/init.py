@@ -113,8 +113,11 @@ def install_ecc_skills(
             tracker.skip("ecc-skills", "no ECC skills found in templates")
         return False
 
-    from .. import _get_skills_dir
-    skills_dir = _get_skills_dir(project_path, selected_ai)
+    if selected_ai == "hermes":
+        skills_dir = Path.home() / ".hermes" / "skills"
+    else:
+        from .. import _get_skills_dir
+        skills_dir = _get_skills_dir(project_path, selected_ai)
     skills_dir.mkdir(parents=True, exist_ok=True)
 
     installed_count = 0

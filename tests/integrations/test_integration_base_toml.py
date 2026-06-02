@@ -483,18 +483,11 @@ class TomlIntegrationTests:
 
     # -- Complete file inventory ------------------------------------------
 
-    COMMAND_STEMS = [
-        "agent-context.update",
-        "analyze",
-        "checklist",
-        "clarify",
-        "constitution",
-        "implement",
-        "plan",
-        "specify",
-        "tasks",
-        "taskstoissues",
-    ]
+    import pathlib as _pathlib
+    _proj_root = _pathlib.Path(__file__).resolve().parents[2]
+    COMMAND_STEMS = ["agent-context.update"] + sorted(
+        [p.stem for p in (_proj_root / "templates" / "commands").glob("*.md")]
+    )
 
     def _expected_files(self, script_variant: str) -> list[str]:
         """Build the expected file list for this integration + script variant."""

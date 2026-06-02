@@ -23,7 +23,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 You are running a **UI design specification workflow**. Your goal is to help the developer define a comprehensive UI specification by generating prompts for AI design tools (Google Stitch, v0, Bolt, etc.), reviewing the resulting mockups, and iterating until the developer is satisfied.
 
-**Prerequisite**: The product specification at `.specify/memory/product-spec.md` should exist. If it doesn't, recommend running `/speckit.brainstorm` first.
+**Prerequisite**: The product specification at `.specify/memory/product-spec.md` should exist. If it doesn't, recommend running `__SPECKIT_COMMAND_BRAINSTORM__` first.
 
 Follow this execution flow:
 
@@ -369,7 +369,7 @@ Once confirmed, compile the UI specification with this structure:
 3. Report completion with:
    - Summary of key design decisions
    - File path
-   - Recommended next step: run `/speckit.initiate` to generate the project constitution
+   - Recommended next step: run `__SPECKIT_COMMAND_INITIATE__` to generate the project constitution
 
 ## Quick Guidelines
 

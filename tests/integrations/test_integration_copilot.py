@@ -125,11 +125,12 @@ class TestCopilotIntegration:
         agents_dir = tmp_path / ".github" / "agents"
         assert agents_dir.is_dir()
         agent_files = sorted(agents_dir.glob("speckit.*.agent.md"))
-        assert len(agent_files) == 9
+        import pathlib
+        _proj_root = pathlib.Path(__file__).resolve().parents[2]
         expected_commands = {
-            "analyze", "checklist", "clarify", "constitution",
-            "implement", "plan", "specify", "tasks", "taskstoissues",
+            p.stem for p in (_proj_root / "templates" / "commands").glob("*.md")
         }
+        assert len(agent_files) == len(expected_commands)
         actual_commands = {f.name.removeprefix("speckit.").removesuffix(".agent.md") for f in agent_files}
         assert actual_commands == expected_commands
 
@@ -192,27 +193,16 @@ class TestCopilotIntegration:
             os.chdir(old_cwd)
         assert result.exit_code == 0
         actual = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file())
+        import pathlib
+        _proj_root = pathlib.Path(__file__).resolve().parents[2]
+        stems = ["agent-context.update"] + sorted(
+            [p.stem for p in (_proj_root / "templates" / "commands").glob("*.md")]
+        )
         expected = sorted([
-            ".github/agents/speckit.agent-context.update.agent.md",
-            ".github/agents/speckit.analyze.agent.md",
-            ".github/agents/speckit.checklist.agent.md",
-            ".github/agents/speckit.clarify.agent.md",
-            ".github/agents/speckit.constitution.agent.md",
-            ".github/agents/speckit.implement.agent.md",
-            ".github/agents/speckit.plan.agent.md",
-            ".github/agents/speckit.specify.agent.md",
-            ".github/agents/speckit.tasks.agent.md",
-            ".github/agents/speckit.taskstoissues.agent.md",
-            ".github/prompts/speckit.agent-context.update.prompt.md",
-            ".github/prompts/speckit.analyze.prompt.md",
-            ".github/prompts/speckit.checklist.prompt.md",
-            ".github/prompts/speckit.clarify.prompt.md",
-            ".github/prompts/speckit.constitution.prompt.md",
-            ".github/prompts/speckit.implement.prompt.md",
-            ".github/prompts/speckit.plan.prompt.md",
-            ".github/prompts/speckit.specify.prompt.md",
-            ".github/prompts/speckit.tasks.prompt.md",
-            ".github/prompts/speckit.taskstoissues.prompt.md",
+            f".github/agents/speckit.{stem}.agent.md" for stem in stems
+        ] + [
+            f".github/prompts/speckit.{stem}.prompt.md" for stem in stems
+        ] + [
             ".vscode/settings.json",
             ".github/copilot-instructions.md",
             ".specify/extensions.yml",
@@ -262,27 +252,16 @@ class TestCopilotIntegration:
             os.chdir(old_cwd)
         assert result.exit_code == 0
         actual = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file())
+        import pathlib
+        _proj_root = pathlib.Path(__file__).resolve().parents[2]
+        stems = ["agent-context.update"] + sorted(
+            [p.stem for p in (_proj_root / "templates" / "commands").glob("*.md")]
+        )
         expected = sorted([
-            ".github/agents/speckit.agent-context.update.agent.md",
-            ".github/agents/speckit.analyze.agent.md",
-            ".github/agents/speckit.checklist.agent.md",
-            ".github/agents/speckit.clarify.agent.md",
-            ".github/agents/speckit.constitution.agent.md",
-            ".github/agents/speckit.implement.agent.md",
-            ".github/agents/speckit.plan.agent.md",
-            ".github/agents/speckit.specify.agent.md",
-            ".github/agents/speckit.tasks.agent.md",
-            ".github/agents/speckit.taskstoissues.agent.md",
-            ".github/prompts/speckit.agent-context.update.prompt.md",
-            ".github/prompts/speckit.analyze.prompt.md",
-            ".github/prompts/speckit.checklist.prompt.md",
-            ".github/prompts/speckit.clarify.prompt.md",
-            ".github/prompts/speckit.constitution.prompt.md",
-            ".github/prompts/speckit.implement.prompt.md",
-            ".github/prompts/speckit.plan.prompt.md",
-            ".github/prompts/speckit.specify.prompt.md",
-            ".github/prompts/speckit.tasks.prompt.md",
-            ".github/prompts/speckit.taskstoissues.prompt.md",
+            f".github/agents/speckit.{stem}.agent.md" for stem in stems
+        ] + [
+            f".github/prompts/speckit.{stem}.prompt.md" for stem in stems
+        ] + [
             ".vscode/settings.json",
             ".github/copilot-instructions.md",
             ".specify/extensions.yml",
@@ -320,10 +299,11 @@ class TestCopilotIntegration:
 class TestCopilotSkillsMode:
     """Tests for Copilot integration in --skills mode."""
 
-    _SKILL_COMMANDS = [
-        "analyze", "checklist", "clarify", "constitution",
-        "implement", "plan", "specify", "tasks", "taskstoissues",
-    ]
+    import pathlib as _pathlib
+    _proj_root = _pathlib.Path(__file__).resolve().parents[2]
+    _SKILL_COMMANDS = sorted(
+        [p.stem for p in (_proj_root / "templates" / "commands").glob("*.md")]
+    )
 
     def _make_copilot(self):
         from specify_cli.integrations.copilot import CopilotIntegration
@@ -658,9 +638,18 @@ class TestCopilotSkillsMode:
             os.chdir(old_cwd)
         assert result.exit_code == 0, f"init failed: {result.output}"
         actual = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file())
+        # Dynamically find all skills and their files in templates/skills/ recursively
+        skills_dir = self._proj_root / "templates" / "skills"
+        template_skills = []
+        if skills_dir.is_dir():
+            for p in skills_dir.rglob("*"):
+                if p.is_file():
+                    rel_p = p.relative_to(skills_dir).as_posix()
+                    template_skills.append(f".github/skills/{rel_p}")
+
         expected = sorted([
             # Skill files (core + extension-installed agent-context command)
-            *[f".github/skills/speckit-{cmd}/SKILL.md" for cmd in self._SKILL_COMMANDS],
+            *template_skills,
             ".github/skills/speckit-agent-context-update/SKILL.md",
             # Context file
             ".github/copilot-instructions.md",

@@ -49,7 +49,7 @@ Compile the final spec reflecting the decisions made in Create or Enhance modes:
 2. Report Completion:
    - Key design decisions.
    - Scores.
-3. Suggest next step: `/speckit.initiate` to generate project constitution.
+3. Suggest next step: `__SPECKIT_COMMAND_INITIATE__` to generate project constitution.
 
 ---
 
