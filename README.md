@@ -44,19 +44,52 @@ Spec-Driven Development **flips the script** on traditional software development
 
 ### 1. Install Specify CLI
 
-Requires **[uv](https://docs.astral.sh/uv/)** ([install uv](./docs/install/uv.md)). Replace `vX.Y.Z` with the latest tag from [Releases](https://github.com/github/spec-kit/releases):
+Requires **[uv](https://docs.astral.sh/uv/)** ([install uv](./docs/install/uv.md)).
+
+**Option A — Install from this fork** (includes all custom templates, commands, and gstack skills):
+
+```bash
+uv tool install specify-cli --from git+https://github.com/a2mus/spec-kit.git@main
+```
+
+**Option B — Install from the official upstream release** — replace `vX.Y.Z` with the latest tag from [Releases](https://github.com/github/spec-kit/releases):
 
 ```bash
 uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@vX.Y.Z
+```
+
+Verify your installation:
+
+```bash
+specify --version
+specify integration list
 ```
 
 See the [Installation Guide](./docs/installation.md) for alternative methods, verification, upgrade, and troubleshooting.
 
 ### 2. Initialize a project
 
+**New project:**
+
 ```bash
+# For Gemini CLI / Antigravity IDE
+specify init my-project --integration gemini
+cd my-project
+
+# For GitHub Copilot
 specify init my-project --integration copilot
 cd my-project
+
+# For Claude Code
+specify init my-project --integration claude
+cd my-project
+```
+
+**Existing project (initialize in the current directory):**
+
+```bash
+cd my-project
+specify init --here --integration gemini --ignore-agent-tools
 ```
 
 ### 3. Establish project principles
