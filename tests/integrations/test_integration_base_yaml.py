@@ -336,8 +336,8 @@ class YamlIntegrationTests:
         assert len(commands) > 0, f"No command files in {cmd_dir}"
 
     def test_init_options_includes_context_file(self, tmp_path):
-        """init-options.json must include context_file for the active integration."""
-        import json
+        """agent-context extension config must include context_file for the active integration."""
+        import yaml
         from typer.testing import CliRunner
         from specify_cli import app
 
@@ -353,19 +353,28 @@ class YamlIntegrationTests:
         finally:
             os.chdir(old_cwd)
         assert result.exit_code == 0
-        opts = json.loads((project / ".specify" / "init-options.json").read_text())
+        ext_cfg_path = project / ".specify" / "extensions" / "agent-context" / "agent-context-config.yml"
+        ext_cfg = yaml.safe_load(ext_cfg_path.read_text(encoding="utf-8")) if ext_cfg_path.exists() else {}
         i = get_integration(self.KEY)
-        assert opts.get("context_file") == i.context_file, (
-            f"Expected context_file={i.context_file!r}, got {opts.get('context_file')!r}"
+        assert ext_cfg.get("context_file") == i.context_file, (
+            f"Expected context_file={i.context_file!r}, got {ext_cfg.get('context_file')!r}"
         )
 
     # -- Complete file inventory ------------------------------------------
 
+<<<<<<< HEAD
     @property
     def COMMAND_STEMS(self) -> list[str]:
         i = get_integration(self.KEY)
         return [t.stem for t in i.list_command_templates()]
 
+=======
+    import pathlib as _pathlib
+    _proj_root = _pathlib.Path(__file__).resolve().parents[2]
+    COMMAND_STEMS = ["agent-context.update"] + sorted(
+        [p.stem for p in (_proj_root / "templates" / "commands").glob("*.md")]
+    )
+>>>>>>> c156cc4cc86a34eee7b3e4588c9f14f6e6c7e0fe
 
     def _expected_files(self, script_variant: str) -> list[str]:
         """Build the expected file list for this integration + script variant."""
@@ -415,6 +424,16 @@ class YamlIntegrationTests:
         # Bundled workflow
         files.append(".specify/workflows/speckit/workflow.yml")
         files.append(".specify/workflows/workflow-registry.json")
+
+        # Bundled agent-context extension
+        files.append(".specify/extensions.yml")
+        files.append(".specify/extensions/.registry")
+        files.append(".specify/extensions/agent-context/README.md")
+        files.append(".specify/extensions/agent-context/agent-context-config.yml")
+        files.append(".specify/extensions/agent-context/commands/speckit.agent-context.update.md")
+        files.append(".specify/extensions/agent-context/extension.yml")
+        files.append(".specify/extensions/agent-context/scripts/bash/update-agent-context.sh")
+        files.append(".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1")
 
         # Agent context file (if set)
         if i.context_file:

@@ -29,8 +29,8 @@ You **MUST** consider the user input before proceeding (if not empty).
 You are generating a **project constitution** — the governing document for the entire product development lifecycle. This constitution is derived from both the product specification and the UI specification, and it codifies the technology choices, coding standards, design principles, architecture decisions, and best practices that the team must follow.
 
 **Prerequisites**: Both files should exist:
-- `.specify/memory/product-spec.md` (from `/speckit.brainstorm`)
-- `.specify/memory/ui-spec.md` (from `/speckit.uidesign`)
+- `.specify/memory/product-spec.md` (from `__SPECKIT_COMMAND_BRAINSTORM__`)
+- `.specify/memory/ui-spec.md` (from `__SPECKIT_COMMAND_UIDESIGN__`)
 
 If either is missing, warn the developer and recommend running the prerequisite command first. You may proceed with only one file if the developer confirms.
 
@@ -361,7 +361,7 @@ this document. Amendments require explicit review and version increment.
      - `.specify/memory/product-spec.md`
      - `.specify/memory/ui-spec.md`
      - `.specify/memory/constitution.md`
-   - Recommended next step: run `/speckit.specify` to create the first feature specification
+   - Recommended next step: run `__SPECKIT_COMMAND_SPECIFY__` to create the first feature specification
    - Suggested commit message: `docs: establish project constitution v1.0.0`
 
 ## Quick Guidelines

@@ -125,7 +125,15 @@ class TestCopilotIntegration:
         agents_dir = tmp_path / ".github" / "agents"
         assert agents_dir.is_dir()
         agent_files = sorted(agents_dir.glob("speckit.*.agent.md"))
+<<<<<<< HEAD
         expected_commands = {t.stem for t in copilot.list_command_templates()}
+=======
+        import pathlib
+        _proj_root = pathlib.Path(__file__).resolve().parents[2]
+        expected_commands = {
+            p.stem for p in (_proj_root / "templates" / "commands").glob("*.md")
+        }
+>>>>>>> c156cc4cc86a34eee7b3e4588c9f14f6e6c7e0fe
         assert len(agent_files) == len(expected_commands)
         actual_commands = {f.name.removeprefix("speckit.").removesuffix(".agent.md") for f in agent_files}
         assert actual_commands == expected_commands
@@ -144,6 +152,21 @@ class TestCopilotIntegration:
             assert "{ARGS}" not in content, f"{agent_file.name} has unprocessed {{ARGS}}"
             assert "__SPECKIT_COMMAND_" not in content, f"{agent_file.name} has unprocessed __SPECKIT_COMMAND_*__"
             assert "\nscripts:\n" not in content
+
+    def test_specify_agent_resolves_active_spec_template(self, tmp_path):
+        """Generated specify agent must not hardcode the core spec template."""
+        from specify_cli.integrations.copilot import CopilotIntegration
+        copilot = CopilotIntegration()
+        m = IntegrationManifest("copilot", tmp_path)
+        copilot.setup(tmp_path, m)
+
+        specify_file = tmp_path / ".github" / "agents" / "speckit.specify.agent.md"
+        content = specify_file.read_text(encoding="utf-8")
+
+        assert "specify preset resolve spec-template" in content
+        assert "resolved active `spec-template`" in content
+        assert "Copy `.specify/templates/spec-template.md`" not in content
+        assert "Load `.specify/templates/spec-template.md`" not in content
 
     def test_plan_references_correct_context_file(self, tmp_path):
         """The generated plan command must reference copilot's context file."""
@@ -175,14 +198,35 @@ class TestCopilotIntegration:
             os.chdir(old_cwd)
         assert result.exit_code == 0
         actual = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file())
+<<<<<<< HEAD
         from specify_cli.integrations.copilot import CopilotIntegration
         copilot = CopilotIntegration()
         stems = [t.stem for t in copilot.list_command_templates()]
         expected = sorted([
             *[f".github/agents/speckit.{stem}.agent.md" for stem in stems],
             *[f".github/prompts/speckit.{stem}.prompt.md" for stem in stems],
+=======
+        import pathlib
+        _proj_root = pathlib.Path(__file__).resolve().parents[2]
+        stems = ["agent-context.update"] + sorted(
+            [p.stem for p in (_proj_root / "templates" / "commands").glob("*.md")]
+        )
+        expected = sorted([
+            f".github/agents/speckit.{stem}.agent.md" for stem in stems
+        ] + [
+            f".github/prompts/speckit.{stem}.prompt.md" for stem in stems
+        ] + [
+>>>>>>> c156cc4cc86a34eee7b3e4588c9f14f6e6c7e0fe
             ".vscode/settings.json",
             ".github/copilot-instructions.md",
+            ".specify/extensions.yml",
+            ".specify/extensions/.registry",
+            ".specify/extensions/agent-context/README.md",
+            ".specify/extensions/agent-context/agent-context-config.yml",
+            ".specify/extensions/agent-context/commands/speckit.agent-context.update.md",
+            ".specify/extensions/agent-context/extension.yml",
+            ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh",
+            ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1",
             ".specify/integration.json",
             ".specify/init-options.json",
             ".specify/integrations/copilot.manifest.json",
@@ -222,14 +266,35 @@ class TestCopilotIntegration:
             os.chdir(old_cwd)
         assert result.exit_code == 0
         actual = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file())
+<<<<<<< HEAD
         from specify_cli.integrations.copilot import CopilotIntegration
         copilot = CopilotIntegration()
         stems = [t.stem for t in copilot.list_command_templates()]
         expected = sorted([
             *[f".github/agents/speckit.{stem}.agent.md" for stem in stems],
             *[f".github/prompts/speckit.{stem}.prompt.md" for stem in stems],
+=======
+        import pathlib
+        _proj_root = pathlib.Path(__file__).resolve().parents[2]
+        stems = ["agent-context.update"] + sorted(
+            [p.stem for p in (_proj_root / "templates" / "commands").glob("*.md")]
+        )
+        expected = sorted([
+            f".github/agents/speckit.{stem}.agent.md" for stem in stems
+        ] + [
+            f".github/prompts/speckit.{stem}.prompt.md" for stem in stems
+        ] + [
+>>>>>>> c156cc4cc86a34eee7b3e4588c9f14f6e6c7e0fe
             ".vscode/settings.json",
             ".github/copilot-instructions.md",
+            ".specify/extensions.yml",
+            ".specify/extensions/.registry",
+            ".specify/extensions/agent-context/README.md",
+            ".specify/extensions/agent-context/agent-context-config.yml",
+            ".specify/extensions/agent-context/commands/speckit.agent-context.update.md",
+            ".specify/extensions/agent-context/extension.yml",
+            ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh",
+            ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1",
             ".specify/integration.json",
             ".specify/init-options.json",
             ".specify/integrations/copilot.manifest.json",
@@ -257,11 +322,19 @@ class TestCopilotIntegration:
 class TestCopilotSkillsMode:
     """Tests for Copilot integration in --skills mode."""
 
+<<<<<<< HEAD
     @property
     def _SKILL_COMMANDS(self) -> list[str]:
         copilot = self._make_copilot()
         return [t.stem for t in copilot.list_command_templates()]
 
+=======
+    import pathlib as _pathlib
+    _proj_root = _pathlib.Path(__file__).resolve().parents[2]
+    _SKILL_COMMANDS = sorted(
+        [p.stem for p in (_proj_root / "templates" / "commands").glob("*.md")]
+    )
+>>>>>>> c156cc4cc86a34eee7b3e4588c9f14f6e6c7e0fe
 
     def _make_copilot(self):
         from specify_cli.integrations.copilot import CopilotIntegration
@@ -377,6 +450,20 @@ class TestCopilotSkillsMode:
         updated = copilot.post_process_skill_content(content)
         assert "mode: speckit.plan" in updated
 
+    def test_post_process_skill_content_injects_hook_note(self):
+        """post_process_skill_content() should inject shared hook guidance."""
+        copilot = self._make_copilot()
+        content = (
+            "---\n"
+            'name: "speckit-specify"\n'
+            'description: "Specify workflow"\n'
+            "---\n"
+            "\n- For each executable hook, output the following\n"
+        )
+        updated = copilot.post_process_skill_content(content)
+        assert "replace dots" in updated
+        assert "mode: speckit.specify" in updated
+
     def test_post_process_idempotent(self):
         """post_process_skill_content() must be idempotent."""
         copilot = self._make_copilot()
@@ -406,6 +493,14 @@ class TestCopilotSkillsMode:
             skill_dir_name = f.parent.name
             stem = skill_dir_name.removeprefix("speckit-")
             assert fm["mode"] == f"speckit.{stem}"
+
+    def test_skills_hook_sections_explain_dotted_command_conversion(self, tmp_path):
+        """Generated skills with hook sections should include shared hook guidance."""
+        copilot = self._make_copilot()
+        self._setup_skills(copilot, tmp_path)
+        specify_skill = tmp_path / ".github" / "skills" / "speckit-specify" / "SKILL.md"
+        content = specify_skill.read_text(encoding="utf-8")
+        assert "replace dots" in content
 
     # -- Template processing ----------------------------------------------
 
@@ -574,11 +669,30 @@ class TestCopilotSkillsMode:
             os.chdir(old_cwd)
         assert result.exit_code == 0, f"init failed: {result.output}"
         actual = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file())
+        # Dynamically find all skills and their files in templates/skills/ recursively
+        skills_dir = self._proj_root / "templates" / "skills"
+        template_skills = []
+        if skills_dir.is_dir():
+            for p in skills_dir.rglob("*"):
+                if p.is_file():
+                    rel_p = p.relative_to(skills_dir).as_posix()
+                    template_skills.append(f".github/skills/{rel_p}")
+
         expected = sorted([
-            # Skill files
-            *[f".github/skills/speckit-{cmd}/SKILL.md" for cmd in self._SKILL_COMMANDS],
+            # Skill files (core + extension-installed agent-context command)
+            *template_skills,
+            ".github/skills/speckit-agent-context-update/SKILL.md",
             # Context file
             ".github/copilot-instructions.md",
+            # Bundled agent-context extension
+            ".specify/extensions.yml",
+            ".specify/extensions/.registry",
+            ".specify/extensions/agent-context/README.md",
+            ".specify/extensions/agent-context/agent-context-config.yml",
+            ".specify/extensions/agent-context/commands/speckit.agent-context.update.md",
+            ".specify/extensions/agent-context/extension.yml",
+            ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh",
+            ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1",
             # Integration metadata
             ".specify/init-options.json",
             ".specify/integration.json",

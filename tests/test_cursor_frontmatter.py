@@ -15,6 +15,8 @@ import pytest
 SCRIPT_PATH = os.path.join(
     os.path.dirname(__file__),
     os.pardir,
+    "extensions",
+    "agent-context",
     "scripts",
     "bash",
     "update-agent-context.sh",
@@ -73,6 +75,8 @@ class TestScriptFrontmatterPattern:
         ps_path = os.path.join(
             os.path.dirname(__file__),
             os.pardir,
+            "extensions",
+            "agent-context",
             "scripts",
             "powershell",
             "update-agent-context.ps1",

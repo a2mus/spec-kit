@@ -195,6 +195,39 @@ class TestGenericIntegration:
         content = implement_file.read_text(encoding="utf-8")
         assert ".specify/memory/constitution.md" in content
 
+    @pytest.mark.parametrize(
+        "command_stem",
+        [
+            "analyze",
+            "checklist",
+            "clarify",
+            "implement",
+            "plan",
+            "specify",
+            "tasks",
+            "taskstoissues",
+        ],
+    )
+    def test_command_loads_constitution_context(self, tmp_path, command_stem):
+        """Every command except constitution must reference constitution.md."""
+        i = get_integration("generic")
+        m = IntegrationManifest("generic", tmp_path)
+        i.setup(tmp_path, m, parsed_options={"commands_dir": ".custom/cmds"})
+        cmd_file = tmp_path / ".custom" / "cmds" / f"speckit.{command_stem}.md"
+        assert cmd_file.exists(), f"Command file missing: {cmd_file.name}"
+        content = cmd_file.read_text(encoding="utf-8")
+        assert "constitution.md" in content, (
+            f"speckit.{command_stem}.md must reference constitution.md"
+        )
+
+    def test_constitution_command_exists(self, tmp_path):
+        """The constitution command itself must exist but is not required to load itself."""
+        i = get_integration("generic")
+        m = IntegrationManifest("generic", tmp_path)
+        i.setup(tmp_path, m, parsed_options={"commands_dir": ".custom/cmds"})
+        cmd_file = tmp_path / ".custom" / "cmds" / "speckit.constitution.md"
+        assert cmd_file.exists()
+
     # -- CLI --------------------------------------------------------------
 
     def test_cli_generic_without_commands_dir_fails(self, tmp_path):
@@ -211,8 +244,8 @@ class TestGenericIntegration:
         assert result.exit_code != 0
 
     def test_init_options_includes_context_file(self, tmp_path):
-        """init-options.json must include context_file for the generic integration."""
-        import json
+        """agent-context extension config must include context_file for the generic integration."""
+        import yaml
         from typer.testing import CliRunner
         from specify_cli import app
 
@@ -229,8 +262,9 @@ class TestGenericIntegration:
         finally:
             os.chdir(old_cwd)
         assert result.exit_code == 0
-        opts = json.loads((project / ".specify" / "init-options.json").read_text())
-        assert opts.get("context_file") == "AGENTS.md"
+        ext_cfg_path = project / ".specify" / "extensions" / "agent-context" / "agent-context-config.yml"
+        ext_cfg = yaml.safe_load(ext_cfg_path.read_text(encoding="utf-8")) if ext_cfg_path.exists() else {}
+        assert ext_cfg.get("context_file") == "AGENTS.md"
 
     def test_complete_file_inventory_sh(self, tmp_path):
         """Every file produced by specify init --integration generic --ai-commands-dir ... --script sh."""
@@ -254,17 +288,21 @@ class TestGenericIntegration:
             p.relative_to(project).as_posix()
             for p in project.rglob("*") if p.is_file()
         )
+        import pathlib
+        _proj_root = pathlib.Path(__file__).resolve().parents[2]
+        stems = sorted(
+            [p.stem for p in (_proj_root / "templates" / "commands").glob("*.md")]
+        )
         expected = sorted([
             "AGENTS.md",
-            ".myagent/commands/speckit.analyze.md",
-            ".myagent/commands/speckit.checklist.md",
-            ".myagent/commands/speckit.clarify.md",
-            ".myagent/commands/speckit.constitution.md",
-            ".myagent/commands/speckit.implement.md",
-            ".myagent/commands/speckit.plan.md",
-            ".myagent/commands/speckit.specify.md",
-            ".myagent/commands/speckit.tasks.md",
-            ".myagent/commands/speckit.taskstoissues.md",
+            ".specify/extensions.yml",
+            ".specify/extensions/.registry",
+            ".specify/extensions/agent-context/README.md",
+            ".specify/extensions/agent-context/agent-context-config.yml",
+            ".specify/extensions/agent-context/commands/speckit.agent-context.update.md",
+            ".specify/extensions/agent-context/extension.yml",
+            ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh",
+            ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1",
             ".specify/init-options.json",
             ".specify/integration.json",
             ".specify/integrations/generic.manifest.json",
@@ -282,7 +320,7 @@ class TestGenericIntegration:
             ".specify/templates/tasks-template.md",
             ".specify/workflows/speckit/workflow.yml",
             ".specify/workflows/workflow-registry.json",
-        ])
+        ] + [f".myagent/commands/speckit.{stem}.md" for stem in stems])
         assert actual == expected, (
             f"Missing: {sorted(set(expected) - set(actual))}\n"
             f"Extra: {sorted(set(actual) - set(expected))}"
@@ -310,17 +348,21 @@ class TestGenericIntegration:
             p.relative_to(project).as_posix()
             for p in project.rglob("*") if p.is_file()
         )
+        import pathlib
+        _proj_root = pathlib.Path(__file__).resolve().parents[2]
+        stems = sorted(
+            [p.stem for p in (_proj_root / "templates" / "commands").glob("*.md")]
+        )
         expected = sorted([
             "AGENTS.md",
-            ".myagent/commands/speckit.analyze.md",
-            ".myagent/commands/speckit.checklist.md",
-            ".myagent/commands/speckit.clarify.md",
-            ".myagent/commands/speckit.constitution.md",
-            ".myagent/commands/speckit.implement.md",
-            ".myagent/commands/speckit.plan.md",
-            ".myagent/commands/speckit.specify.md",
-            ".myagent/commands/speckit.tasks.md",
-            ".myagent/commands/speckit.taskstoissues.md",
+            ".specify/extensions.yml",
+            ".specify/extensions/.registry",
+            ".specify/extensions/agent-context/README.md",
+            ".specify/extensions/agent-context/agent-context-config.yml",
+            ".specify/extensions/agent-context/commands/speckit.agent-context.update.md",
+            ".specify/extensions/agent-context/extension.yml",
+            ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh",
+            ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1",
             ".specify/init-options.json",
             ".specify/integration.json",
             ".specify/integrations/generic.manifest.json",
@@ -338,7 +380,7 @@ class TestGenericIntegration:
             ".specify/templates/tasks-template.md",
             ".specify/workflows/speckit/workflow.yml",
             ".specify/workflows/workflow-registry.json",
-        ])
+        ] + [f".myagent/commands/speckit.{stem}.md" for stem in stems])
         assert actual == expected, (
             f"Missing: {sorted(set(expected) - set(actual))}\n"
             f"Extra: {sorted(set(actual) - set(expected))}"

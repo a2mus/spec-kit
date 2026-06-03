@@ -27,33 +27,18 @@ Or install globally:
 """
 
 import os
-import subprocess
 import sys
 import zipfile
-import tempfile
-import shutil
 import json
-import json5
-import stat
-import shlex
-import urllib.error
-import urllib.request
 import yaml
 from pathlib import Path
 
-from packaging.version import InvalidVersion, Version
 from typing import Any, Optional
 
 import typer
-from rich.console import Console
 from rich.panel import Panel
-from rich.text import Text
-from rich.live import Live
 from rich.align import Align
 from rich.table import Table
-from rich.tree import Tree
-from typer.core import TyperGroup
-
 from .integration_runtime import (
     invoke_separator_for_integration as _invoke_separator_for_integration,
     resolve_integration_options as _resolve_integration_options_impl,
@@ -67,7 +52,7 @@ from .integration_state import (
     installed_integration_keys as _installed_integration_keys,
     integration_setting as _integration_setting,
     integration_settings as _integration_settings,
-    normalize_integration_state as _normalize_integration_state,
+    try_read_integration_json as _try_read_integration_json,
     write_integration_json as _write_integration_json_file,
 )
 from .shared_infra import (
@@ -75,292 +60,48 @@ from .shared_infra import (
     refresh_shared_templates as _refresh_shared_templates_impl,
 )
 
-# For cross-platform keyboard input
-import readchar
-
-GITHUB_API_LATEST = "https://api.github.com/repos/github/spec-kit/releases/latest"
-
-def _build_agent_config() -> dict[str, dict[str, Any]]:
-    """Derive AGENT_CONFIG from INTEGRATION_REGISTRY."""
-    from .integrations import INTEGRATION_REGISTRY
-    config: dict[str, dict[str, Any]] = {}
-    for key, integration in INTEGRATION_REGISTRY.items():
-        if integration.config:
-            config[key] = dict(integration.config)
-    return config
-
-AGENT_CONFIG = _build_agent_config()
-DEFAULT_INIT_INTEGRATION = "copilot"
-
-AI_ASSISTANT_ALIASES = {
-    "kiro": "kiro-cli",
-}
-
-# Agents that use TOML command format (others use Markdown)
-_TOML_AGENTS = frozenset({"gemini", "tabnine"})
-
-def _build_ai_assistant_help() -> str:
-    """Build the --ai help text from AGENT_CONFIG so it stays in sync with runtime config."""
-
-    non_generic_agents = sorted(agent for agent in AGENT_CONFIG if agent != "generic")
-    base_help = (
-        f"AI assistant to use: {', '.join(non_generic_agents)}, "
-        "or generic (requires --ai-commands-dir)."
-    )
-
-    if not AI_ASSISTANT_ALIASES:
-        return base_help
-
-    alias_phrases = []
-    for alias, target in sorted(AI_ASSISTANT_ALIASES.items()):
-        alias_phrases.append(f"'{alias}' as an alias for '{target}'")
-
-    if len(alias_phrases) == 1:
-        aliases_text = alias_phrases[0]
-    else:
-        aliases_text = ', '.join(alias_phrases[:-1]) + ' and ' + alias_phrases[-1]
-
-    return base_help + " Use " + aliases_text + "."
-AI_ASSISTANT_HELP = _build_ai_assistant_help()
-
-
-def _build_integration_equivalent(
-    integration_key: str,
-    ai_commands_dir: str | None = None,
-) -> str:
-    """Build the modern --integration equivalent for legacy --ai usage."""
-
-    parts = [f"--integration {integration_key}"]
-    if integration_key == "generic" and ai_commands_dir:
-        parts.append(
-            f'--integration-options="--commands-dir {shlex.quote(ai_commands_dir)}"'
-        )
-    return " ".join(parts)
-
-
-def _build_ai_deprecation_warning(
-    integration_key: str,
-    ai_commands_dir: str | None = None,
-) -> str:
-    """Build the legacy --ai deprecation warning message."""
-
-    replacement = _build_integration_equivalent(
-        integration_key,
-        ai_commands_dir=ai_commands_dir,
-    )
-    return (
-        "[bold]--ai[/bold] is deprecated and will no longer be available in version 0.10.0 or later.\n\n"
-        f"Use [bold]{replacement}[/bold] instead."
-    )
-
-def _stdin_is_interactive() -> bool:
-    return sys.stdin.isatty()
-
-SCRIPT_TYPE_CHOICES = {"sh": "POSIX Shell (bash/zsh)", "ps": "PowerShell"}
-
-CLAUDE_LOCAL_PATH = Path.home() / ".claude" / "local" / "claude"
-CLAUDE_NPM_LOCAL_PATH = Path.home() / ".claude" / "local" / "node_modules" / ".bin" / "claude"
-
-BANNER = """
-███████╗██████╗ ███████╗ ██████╗██╗███████╗██╗   ██╗
-██╔════╝██╔══██╗██╔════╝██╔════╝██║██╔════╝╚██╗ ██╔╝
-███████╗██████╔╝█████╗  ██║     ██║█████╗   ╚████╔╝
-╚════██║██╔═══╝ ██╔══╝  ██║     ██║██╔══╝    ╚██╔╝
-███████║██║     ███████╗╚██████╗██║██║        ██║
-╚══════╝╚═╝     ╚══════╝ ╚═════╝╚═╝╚═╝        ╚═╝
-"""
-
-TAGLINE = "GitHub Spec Kit - Spec-Driven Development Toolkit"
-class StepTracker:
-    """Track and render hierarchical steps without emojis, similar to Claude Code tree output.
-    Supports live auto-refresh via an attached refresh callback.
-    """
-    def __init__(self, title: str):
-        self.title = title
-        self.steps = []  # list of dicts: {key, label, status, detail}
-        self.status_order = {"pending": 0, "running": 1, "done": 2, "error": 3, "skipped": 4}
-        self._refresh_cb = None  # callable to trigger UI refresh
-
-    def attach_refresh(self, cb):
-        self._refresh_cb = cb
-
-    def add(self, key: str, label: str):
-        if key not in [s["key"] for s in self.steps]:
-            self.steps.append({"key": key, "label": label, "status": "pending", "detail": ""})
-            self._maybe_refresh()
-
-    def start(self, key: str, detail: str = ""):
-        self._update(key, status="running", detail=detail)
-
-    def complete(self, key: str, detail: str = ""):
-        self._update(key, status="done", detail=detail)
-
-    def error(self, key: str, detail: str = ""):
-        self._update(key, status="error", detail=detail)
-
-    def skip(self, key: str, detail: str = ""):
-        self._update(key, status="skipped", detail=detail)
-
-    def _update(self, key: str, status: str, detail: str):
-        for s in self.steps:
-            if s["key"] == key:
-                s["status"] = status
-                if detail:
-                    s["detail"] = detail
-                self._maybe_refresh()
-                return
-
-        self.steps.append({"key": key, "label": key, "status": status, "detail": detail})
-        self._maybe_refresh()
-
-    def _maybe_refresh(self):
-        if self._refresh_cb:
-            try:
-                self._refresh_cb()
-            except Exception:
-                pass
-
-    def render(self):
-        tree = Tree(f"[cyan]{self.title}[/cyan]", guide_style="grey50")
-        for step in self.steps:
-            label = step["label"]
-            detail_text = step["detail"].strip() if step["detail"] else ""
-
-            status = step["status"]
-            if status == "done":
-                symbol = "[green]●[/green]"
-            elif status == "pending":
-                symbol = "[green dim]○[/green dim]"
-            elif status == "running":
-                symbol = "[cyan]○[/cyan]"
-            elif status == "error":
-                symbol = "[red]●[/red]"
-            elif status == "skipped":
-                symbol = "[yellow]○[/yellow]"
-            else:
-                symbol = " "
-
-            if status == "pending":
-                # Entire line light gray (pending)
-                if detail_text:
-                    line = f"{symbol} [bright_black]{label} ({detail_text})[/bright_black]"
-                else:
-                    line = f"{symbol} [bright_black]{label}[/bright_black]"
-            else:
-                # Label white, detail (if any) light gray in parentheses
-                if detail_text:
-                    line = f"{symbol} [white]{label}[/white] [bright_black]({detail_text})[/bright_black]"
-                else:
-                    line = f"{symbol} [white]{label}[/white]"
-
-            tree.add(line)
-        return tree
-
-def get_key():
-    """Get a single keypress in a cross-platform way using readchar."""
-    key = readchar.readkey()
-
-    if key == readchar.key.UP or key == readchar.key.CTRL_P:
-        return 'up'
-    if key == readchar.key.DOWN or key == readchar.key.CTRL_N:
-        return 'down'
-
-    if key == readchar.key.ENTER:
-        return 'enter'
-
-    if key == readchar.key.ESC:
-        return 'escape'
-
-    if key == readchar.key.CTRL_C:
-        raise KeyboardInterrupt
-
-    return key
-
-def select_with_arrows(options: dict, prompt_text: str = "Select an option", default_key: str = None) -> str:
-    """
-    Interactive selection using arrow keys with Rich Live display.
-
-    Args:
-        options: Dict with keys as option keys and values as descriptions
-        prompt_text: Text to show above the options
-        default_key: Default option key to start with
-
-    Returns:
-        Selected option key
-    """
-    option_keys = list(options.keys())
-    if default_key and default_key in option_keys:
-        selected_index = option_keys.index(default_key)
-    else:
-        selected_index = 0
-
-    selected_key = None
-
-    def create_selection_panel():
-        """Create the selection panel with current selection highlighted."""
-        table = Table.grid(padding=(0, 2))
-        table.add_column(style="cyan", justify="left", width=3)
-        table.add_column(style="white", justify="left")
-
-        for i, key in enumerate(option_keys):
-            if i == selected_index:
-                table.add_row("▶", f"[cyan]{key}[/cyan] [dim]({options[key]})[/dim]")
-            else:
-                table.add_row(" ", f"[cyan]{key}[/cyan] [dim]({options[key]})[/dim]")
-
-        table.add_row("", "")
-        table.add_row("", "[dim]Use ↑/↓ to navigate, Enter to select, Esc to cancel[/dim]")
-
-        return Panel(
-            table,
-            title=f"[bold]{prompt_text}[/bold]",
-            border_style="cyan",
-            padding=(1, 2)
-        )
-
-    console.print()
-
-    def run_selection_loop():
-        nonlocal selected_key, selected_index
-        with Live(create_selection_panel(), console=console, transient=True, auto_refresh=False) as live:
-            while True:
-                try:
-                    key = get_key()
-                    if key == 'up':
-                        selected_index = (selected_index - 1) % len(option_keys)
-                    elif key == 'down':
-                        selected_index = (selected_index + 1) % len(option_keys)
-                    elif key == 'enter':
-                        selected_key = option_keys[selected_index]
-                        break
-                    elif key == 'escape':
-                        console.print("\n[yellow]Selection cancelled[/yellow]")
-                        raise typer.Exit(1)
-
-                    live.update(create_selection_panel(), refresh=True)
-
-                except KeyboardInterrupt:
-                    console.print("\n[yellow]Selection cancelled[/yellow]")
-                    raise typer.Exit(1)
-
-    run_selection_loop()
-
-    if selected_key is None:
-        console.print("\n[red]Selection failed.[/red]")
-        raise typer.Exit(1)
-
-    return selected_key
-
-console = Console(highlight=False)
-
-class BannerGroup(TyperGroup):
-    """Custom group that shows banner before help."""
-
-    def format_help(self, ctx, formatter):
-        # Show banner before help
-        show_banner()
-        super().format_help(ctx, formatter)
-
+from ._console import (
+    BANNER as BANNER,
+    TAGLINE as TAGLINE,
+    BannerGroup,
+    StepTracker,
+    console,
+    get_key as get_key,
+    select_with_arrows as select_with_arrows,
+    show_banner,
+)
+from ._assets import (
+    _locate_bundled_extension,
+    _locate_bundled_preset,
+    _locate_bundled_workflow as _locate_bundled_workflow,
+    _locate_core_pack,
+    _repo_root,
+    get_speckit_version as get_speckit_version,
+)
+from ._utils import (
+    CLAUDE_LOCAL_PATH as CLAUDE_LOCAL_PATH,
+    CLAUDE_NPM_LOCAL_PATH as CLAUDE_NPM_LOCAL_PATH,
+    _display_project_path,
+    check_tool as check_tool,
+    handle_vscode_settings as handle_vscode_settings,
+    init_git_repo as init_git_repo,
+    is_git_repo as is_git_repo,
+    merge_json_files as merge_json_files,
+    run_command as run_command,
+)
+from ._version import (
+    GITHUB_API_LATEST as GITHUB_API_LATEST,
+    self_app as _self_app,
+    self_check as self_check,
+    self_upgrade as self_upgrade,
+)
+from ._agent_config import (
+    AGENT_CONFIG as AGENT_CONFIG,
+    AI_ASSISTANT_ALIASES as AI_ASSISTANT_ALIASES,
+    AI_ASSISTANT_HELP as AI_ASSISTANT_HELP,
+    DEFAULT_INIT_INTEGRATION as DEFAULT_INIT_INTEGRATION,
+    SCRIPT_TYPE_CHOICES as SCRIPT_TYPE_CHOICES,
+)
 
 app = typer.Typer(
     name="specify",
@@ -369,20 +110,6 @@ app = typer.Typer(
     invoke_without_command=True,
     cls=BannerGroup,
 )
-
-def show_banner():
-    """Display the ASCII art banner."""
-    banner_lines = BANNER.strip().split('\n')
-    colors = ["bright_blue", "blue", "cyan", "bright_cyan", "white", "bright_white"]
-
-    styled_banner = Text()
-    for i, line in enumerate(banner_lines):
-        color = colors[i % len(colors)]
-        styled_banner.append(line + "\n", style=color)
-
-    console.print(Align.center(styled_banner))
-    console.print(Align.center(Text(TAGLINE, style="italic bright_yellow")))
-    console.print()
 
 def _version_callback(value: bool):
     if value:
@@ -399,351 +126,6 @@ def callback(
         show_banner()
         console.print(Align.center("[dim]Run 'specify --help' for usage information[/dim]"))
         console.print()
-
-def run_command(cmd: list[str], check_return: bool = True, capture: bool = False, shell: bool = False) -> Optional[str]:
-    """Run a shell command and optionally capture output."""
-    try:
-        if capture:
-            result = subprocess.run(cmd, check=check_return, capture_output=True, text=True, shell=shell)
-            return result.stdout.strip()
-        else:
-            subprocess.run(cmd, check=check_return, shell=shell)
-            return None
-    except subprocess.CalledProcessError as e:
-        if check_return:
-            console.print(f"[red]Error running command:[/red] {' '.join(cmd)}")
-            console.print(f"[red]Exit code:[/red] {e.returncode}")
-            if hasattr(e, 'stderr') and e.stderr:
-                console.print(f"[red]Error output:[/red] {e.stderr}")
-            raise
-        return None
-
-def check_tool(tool: str, tracker: StepTracker = None) -> bool:
-    """Check if a tool is installed. Optionally update tracker.
-
-    Args:
-        tool: Name of the tool to check
-        tracker: Optional StepTracker to update with results
-
-    Returns:
-        True if tool is found, False otherwise
-    """
-    # Special handling for Claude CLI local installs
-    # See: https://github.com/github/spec-kit/issues/123
-    # See: https://github.com/github/spec-kit/issues/550
-    # Claude Code can be installed in two local paths:
-    #   1. ~/.claude/local/claude          (after `claude migrate-installer`)
-    #   2. ~/.claude/local/node_modules/.bin/claude  (npm-local install, e.g. via nvm)
-    # Neither path may be on the system PATH, so we check them explicitly.
-    if tool == "claude":
-        if CLAUDE_LOCAL_PATH.is_file() or CLAUDE_NPM_LOCAL_PATH.is_file():
-            if tracker:
-                tracker.complete(tool, "available")
-            return True
-
-    if tool == "kiro-cli":
-        # Kiro currently supports both executable names. Prefer kiro-cli and
-        # accept kiro as a compatibility fallback.
-        found = shutil.which("kiro-cli") is not None or shutil.which("kiro") is not None
-    else:
-        found = shutil.which(tool) is not None
-
-    if tracker:
-        if found:
-            tracker.complete(tool, "available")
-        else:
-            tracker.error(tool, "not found")
-
-    return found
-
-
-def is_git_repo(path: Path = None) -> bool:
-    """Check if the specified path is inside a git repository."""
-    if path is None:
-        path = Path.cwd()
-
-    if not path.is_dir():
-        return False
-
-    try:
-        subprocess.run(
-            ["git", "rev-parse", "--is-inside-work-tree"],
-            check=True,
-            capture_output=True,
-            cwd=path,
-        )
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
-
-
-def init_git_repo(project_path: Path, quiet: bool = False) -> tuple[bool, Optional[str]]:
-    """Initialize a git repository in the specified path."""
-    try:
-        original_cwd = Path.cwd()
-        os.chdir(project_path)
-        if not quiet:
-            console.print("[cyan]Initializing git repository...[/cyan]")
-        subprocess.run(["git", "init"], check=True, capture_output=True, text=True)
-        subprocess.run(["git", "add", "."], check=True, capture_output=True, text=True)
-        subprocess.run(["git", "commit", "-m", "Initial commit from Specify template"], check=True, capture_output=True, text=True)
-        if not quiet:
-            console.print("[green]✓[/green] Git repository initialized")
-        return True, None
-    except subprocess.CalledProcessError as e:
-        error_msg = f"Command: {' '.join(e.cmd)}\nExit code: {e.returncode}"
-        if e.stderr:
-            error_msg += f"\nError: {e.stderr.strip()}"
-        elif e.stdout:
-            error_msg += f"\nOutput: {e.stdout.strip()}"
-        if not quiet:
-            console.print(f"[red]Error initializing git repository:[/red] {e}")
-        return False, error_msg
-    finally:
-        os.chdir(original_cwd)
-
-
-def handle_vscode_settings(sub_item, dest_file, rel_path, verbose=False, tracker=None) -> None:
-    """Handle merging or copying of .vscode/settings.json files.
-
-    Note: when merge produces changes, rewritten output is normalized JSON and
-    existing JSONC comments/trailing commas are not preserved.
-    """
-    def log(message, color="green"):
-        if verbose and not tracker:
-            console.print(f"[{color}]{message}[/] {rel_path}")
-
-    def atomic_write_json(target_file: Path, payload: dict[str, Any]) -> None:
-        """Atomically write JSON while preserving existing mode bits when possible."""
-        temp_path: Optional[Path] = None
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode='w',
-                encoding='utf-8',
-                dir=target_file.parent,
-                prefix=f"{target_file.name}.",
-                suffix=".tmp",
-                delete=False,
-            ) as f:
-                temp_path = Path(f.name)
-                json.dump(payload, f, indent=4)
-                f.write('\n')
-
-            if target_file.exists():
-                try:
-                    existing_stat = target_file.stat()
-                    os.chmod(temp_path, stat.S_IMODE(existing_stat.st_mode))
-                    if hasattr(os, "chown"):
-                        try:
-                            os.chown(temp_path, existing_stat.st_uid, existing_stat.st_gid)
-                        except PermissionError:
-                            # Best-effort owner/group preservation without requiring elevated privileges.
-                            pass
-                except OSError:
-                    # Best-effort metadata preservation; data safety is prioritized.
-                    pass
-
-            os.replace(temp_path, target_file)
-        except Exception:
-            if temp_path and temp_path.exists():
-                temp_path.unlink()
-            raise
-
-    try:
-        with open(sub_item, 'r', encoding='utf-8') as f:
-            # json5 natively supports comments and trailing commas (JSONC)
-            new_settings = json5.load(f)
-
-        if dest_file.exists():
-            merged = merge_json_files(dest_file, new_settings, verbose=verbose and not tracker)
-            if merged is not None:
-                atomic_write_json(dest_file, merged)
-                log("Merged:", "green")
-                log("Note: comments/trailing commas are normalized when rewritten", "yellow")
-            else:
-                log("Skipped merge (preserved existing settings)", "yellow")
-        else:
-            shutil.copy2(sub_item, dest_file)
-            log("Copied (no existing settings.json):", "blue")
-
-    except Exception as e:
-        log(f"Warning: Could not merge settings: {e}", "yellow")
-        if not dest_file.exists():
-            shutil.copy2(sub_item, dest_file)
-
-
-def merge_json_files(existing_path: Path, new_content: Any, verbose: bool = False) -> Optional[dict[str, Any]]:
-    """Merge new JSON content into existing JSON file.
-
-    Performs a polite deep merge where:
-    - New keys are added
-    - Existing keys are preserved (not overwritten) unless both values are dictionaries
-    - Nested dictionaries are merged recursively only when both sides are dictionaries
-    - Lists and other values are preserved from base if they exist
-
-    Args:
-        existing_path: Path to existing JSON file
-        new_content: New JSON content to merge in
-        verbose: Whether to print merge details
-
-    Returns:
-        Merged JSON content as dict, or None if the existing file should be left untouched.
-    """
-    # Load existing content first to have a safe fallback
-    existing_content = None
-    exists = existing_path.exists()
-
-    if exists:
-        try:
-            with open(existing_path, 'r', encoding='utf-8') as f:
-                # Handle comments (JSONC) natively with json5
-                # Note: json5 handles BOM automatically
-                existing_content = json5.load(f)
-        except FileNotFoundError:
-            # Handle race condition where file is deleted after exists() check
-            exists = False
-        except Exception as e:
-            if verbose:
-                console.print(f"[yellow]Warning: Could not read or parse existing JSON in {existing_path.name} ({e}).[/yellow]")
-            # Skip merge to preserve existing file if unparseable or inaccessible (e.g. PermissionError)
-            return None
-
-    # Validate template content
-    if not isinstance(new_content, dict):
-        if verbose:
-            console.print(f"[yellow]Warning: Template content for {existing_path.name} is not a dictionary. Preserving existing settings.[/yellow]")
-        return None
-
-    if not exists:
-        return new_content
-
-    # If existing content parsed but is not a dict, skip merge to avoid data loss
-    if not isinstance(existing_content, dict):
-        if verbose:
-            console.print(f"[yellow]Warning: Existing JSON in {existing_path.name} is not an object. Skipping merge to avoid data loss.[/yellow]")
-        return None
-
-    def deep_merge_polite(base: dict[str, Any], update: dict[str, Any]) -> dict[str, Any]:
-        """Recursively merge update dict into base dict, preserving base values."""
-        result = base.copy()
-        for key, value in update.items():
-            if key not in result:
-                # Add new key
-                result[key] = value
-            elif isinstance(result[key], dict) and isinstance(value, dict):
-                # Recursively merge nested dictionaries
-                result[key] = deep_merge_polite(result[key], value)
-            else:
-                # Key already exists and values are not both dicts; preserve existing value.
-                # This ensures user settings aren't overwritten by template defaults.
-                pass
-        return result
-
-    merged = deep_merge_polite(existing_content, new_content)
-
-    # Detect if anything actually changed. If not, return None so the caller
-    # can skip rewriting the file (preserving user's comments/formatting).
-    if merged == existing_content:
-        return None
-
-    if verbose:
-        console.print(f"[cyan]Merged JSON file:[/cyan] {existing_path.name}")
-
-    return merged
-
-def _locate_core_pack() -> Path | None:
-    """Return the filesystem path to the bundled core_pack directory, or None.
-
-    Only present in wheel installs: hatchling's force-include copies
-    templates/, scripts/ etc. into specify_cli/core_pack/ at build time.
-
-    Source-checkout and editable installs do NOT have this directory.
-    Callers that need to work in both environments must check the repo-root
-    trees (templates/, scripts/) as a fallback when this returns None.
-    """
-    # Wheel install: core_pack is a sibling directory of this file
-    candidate = Path(__file__).parent / "core_pack"
-    if candidate.is_dir():
-        return candidate
-    return None
-
-
-def _repo_root() -> Path:
-    """Return the source checkout root used for editable installs."""
-    return Path(__file__).parent.parent.parent
-
-
-def _locate_bundled_extension(extension_id: str) -> Path | None:
-    """Return the path to a bundled extension, or None.
-
-    Checks the wheel's core_pack first, then falls back to the
-    source-checkout ``extensions/<id>/`` directory.
-    """
-    import re as _re
-    if not _re.match(r'^[a-z0-9-]+$', extension_id):
-        return None
-
-    core = _locate_core_pack()
-    if core is not None:
-        candidate = core / "extensions" / extension_id
-        if (candidate / "extension.yml").is_file():
-            return candidate
-
-    # Source-checkout / editable install: look relative to repo root
-    candidate = _repo_root() / "extensions" / extension_id
-    if (candidate / "extension.yml").is_file():
-        return candidate
-
-    return None
-
-
-def _locate_bundled_workflow(workflow_id: str) -> Path | None:
-    """Return the path to a bundled workflow directory, or None.
-
-    Checks the wheel's core_pack first, then falls back to the
-    source-checkout ``workflows/<id>/`` directory.
-    """
-    import re as _re
-    if not _re.match(r'^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$', workflow_id):
-        return None
-
-    core = _locate_core_pack()
-    if core is not None:
-        candidate = core / "workflows" / workflow_id
-        if (candidate / "workflow.yml").is_file():
-            return candidate
-
-    # Source-checkout / editable install: look relative to repo root
-    candidate = _repo_root() / "workflows" / workflow_id
-    if (candidate / "workflow.yml").is_file():
-        return candidate
-
-    return None
-
-
-def _locate_bundled_preset(preset_id: str) -> Path | None:
-    """Return the path to a bundled preset, or None.
-
-    Checks the wheel's core_pack first, then falls back to the
-    source-checkout ``presets/<id>/`` directory.
-    """
-    import re as _re
-    if not _re.match(r'^[a-z0-9-]+$', preset_id):
-        return None
-
-    core = _locate_core_pack()
-    if core is not None:
-        candidate = core / "presets" / preset_id
-        if (candidate / "preset.yml").is_file():
-            return candidate
-
-    # Source-checkout / editable install: look relative to repo root
-    candidate = _repo_root() / "presets" / preset_id
-    if (candidate / "preset.yml").is_file():
-        return candidate
-
-    return None
-
 
 def _refresh_shared_templates(
     project_path: Path,
@@ -769,20 +151,37 @@ def _install_shared_infra(
     tracker: StepTracker | None = None,
     force: bool = False,
     invoke_separator: str = ".",
+    refresh_managed: bool = False,
+    refresh_hint: str | None = None,
 ) -> bool:
     """Install shared infrastructure files into *project_path*.
 
-    Copies ``.specify/scripts/`` and ``.specify/templates/`` from the
-    bundled core_pack or source checkout.  Tracks all installed files
-    in ``speckit.manifest.json``.
+    Copies ``.specify/scripts/<variant>/`` and ``.specify/templates/`` from
+    the bundled core_pack or source checkout, where ``<variant>`` is
+    ``bash`` when *script_type* is ``"sh"`` and ``powershell`` when it is
+    ``"ps"``.  Tracks all installed files in ``speckit.manifest.json``.
 
-    Page templates are processed to resolve ``__SPECKIT_COMMAND_<NAME>__``
-    placeholders using *invoke_separator* (``"."`` for markdown agents,
-    ``"-"`` for skills agents).
+    Shared scripts and page templates are processed to resolve
+    ``__SPECKIT_COMMAND_<NAME>__`` placeholders using *invoke_separator*
+    (``"."`` for markdown agents, ``"-"`` for skills agents).
 
-    When *force* is ``True``, existing files are overwritten with the
-    latest bundled versions.  When ``False`` (default), only missing
-    files are added and existing ones are skipped.
+    Overwrite policy:
+
+    * ``force=True``  — overwrite every existing file (still skips symlinks
+      to avoid following links outside the project root).
+    * ``refresh_managed=True`` — overwrite only files whose on-disk hash
+      still matches the previously recorded manifest hash (i.e. unmodified
+      files installed by spec-kit). Files with diverging hashes are
+      treated as user customizations and preserved with a warning.
+    * Default — only add missing files; existing ones are skipped.
+
+    *refresh_hint* — caller-supplied rich-text fragment shown after the
+    "Preserved customized files" warning to tell the user which flag/command
+    they should re-run with to overwrite their customizations. Each caller
+    passes the flag that's actually valid in its CLI surface (e.g.
+    ``--refresh-shared-infra`` for ``integration switch``,
+    ``--force`` for ``init``/``integration upgrade``). When ``None``, no
+    remediation hint is printed for customizations.
 
     Returns ``True`` on success.
     """
@@ -795,6 +194,8 @@ def _install_shared_infra(
         console=console,
         force=force,
         invoke_separator=invoke_separator,
+        refresh_managed=refresh_managed,
+        refresh_hint=refresh_hint,
     )
 
 
@@ -804,6 +205,8 @@ def _install_shared_infra_or_exit(
     tracker: StepTracker | None = None,
     force: bool = False,
     invoke_separator: str = ".",
+    refresh_managed: bool = False,
+    refresh_hint: str | None = None,
 ) -> bool:
     try:
         return _install_shared_infra(
@@ -812,6 +215,8 @@ def _install_shared_infra_or_exit(
             tracker=tracker,
             force=force,
             invoke_separator=invoke_separator,
+            refresh_managed=refresh_managed,
+            refresh_hint=refresh_hint,
         )
     except (ValueError, OSError) as exc:
         console.print(f"[red]Error:[/red] Failed to install shared infrastructure: {exc}")
@@ -870,42 +275,6 @@ def ensure_executable_scripts(project_path: Path, tracker: StepTracker | None = 
             for f in failures:
                 console.print(f"  - {f}")
 
-def ensure_constitution_from_template(project_path: Path, tracker: StepTracker | None = None) -> None:
-    """Copy constitution template to memory if it doesn't exist (preserves existing constitution on reinitialization)."""
-    memory_constitution = project_path / ".specify" / "memory" / "constitution.md"
-    template_constitution = project_path / ".specify" / "templates" / "constitution-template.md"
-
-    # If constitution already exists in memory, preserve it
-    if memory_constitution.exists():
-        if tracker:
-            tracker.add("constitution", "Constitution setup")
-            tracker.skip("constitution", "existing file preserved")
-        return
-
-    # If template doesn't exist, something went wrong with extraction
-    if not template_constitution.exists():
-        if tracker:
-            tracker.add("constitution", "Constitution setup")
-            tracker.error("constitution", "template not found")
-        return
-
-    # Copy template to memory directory
-    try:
-        memory_constitution.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(template_constitution, memory_constitution)
-        if tracker:
-            tracker.add("constitution", "Constitution setup")
-            tracker.complete("constitution", "copied from template")
-        else:
-            console.print("[cyan]Initialized constitution from template[/cyan]")
-    except Exception as e:
-        if tracker:
-            tracker.add("constitution", "Constitution setup")
-            tracker.error("constitution", str(e))
-        else:
-            console.print(f"[yellow]Warning: Could not initialize constitution: {e}[/yellow]")
-
-
 INIT_OPTIONS_FILE = ".specify/init-options.json"
 
 
@@ -918,7 +287,28 @@ def save_init_options(project_path: Path, options: dict[str, Any]) -> None:
     """
     dest = project_path / INIT_OPTIONS_FILE
     dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(json.dumps(options, indent=2, sort_keys=True))
+    # Write JSON as real UTF-8 instead of ``\uXXXX`` escape sequences
+    # (``ensure_ascii=False``) and pin the file encoding to match.
+    #
+    # The default ``json.dumps`` output is ASCII-only — any non-ASCII
+    # character is encoded as a ``\uXXXX`` escape — so without the
+    # ``ensure_ascii=False`` flip below the encoding pin alone would be
+    # a no-op for any payload we plausibly write today. We pair the two
+    # so the on-disk bytes match a human's expectation of "this file is
+    # UTF-8" (greppable, readable in editors that don't decode JSON
+    # escapes, friendly to peers running ``cat`` or ``Get-Content``) and
+    # so the encoding pin is a real contract instead of a future hedge.
+    #
+    # ``Path.write_text`` without ``encoding=`` falls back to the system
+    # locale codec (cp1252 / gb2312 / cp932 on Windows), which would
+    # mis-encode non-ASCII bytes locally and produce a file a peer with
+    # a different locale couldn't decode. The sibling integration-
+    # catalog writer in ``integrations/catalog.py`` pins
+    # ``encoding="utf-8"`` for the same reason.
+    dest.write_text(
+        json.dumps(options, indent=2, sort_keys=True, ensure_ascii=False),
+        encoding="utf-8",
+    )
 
 
 def load_init_options(project_path: Path) -> dict[str, Any]:
@@ -930,9 +320,84 @@ def load_init_options(project_path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
-        return json.loads(path.read_text())
-    except (json.JSONDecodeError, OSError):
+        # Match the explicit UTF-8 used by ``save_init_options``; without
+        # it ``read_text`` falls back to the system codec on Windows and
+        # raises ``UnicodeDecodeError`` on any file containing the
+        # multi-byte UTF-8 sequences ``save_init_options`` now writes
+        # directly. ``UnicodeDecodeError`` is a subclass of
+        # ``ValueError``, not ``OSError`` / ``json.JSONDecodeError``, so
+        # it must be listed explicitly here to preserve the existing
+        # "fall back to empty dict" contract for corrupted / foreign-
+        # codec files.
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         return {}
+
+
+# ---------------------------------------------------------------------------
+# Agent-context extension config helpers
+# ---------------------------------------------------------------------------
+
+_AGENT_CTX_EXT_CONFIG = (
+    Path(".specify") / "extensions" / "agent-context" / "agent-context-config.yml"
+)
+
+
+def _load_agent_context_config(project_root: Path) -> dict[str, Any]:
+    """Load the agent-context extension config, returning defaults on failure."""
+    from .integrations.base import IntegrationBase
+
+    defaults: dict[str, Any] = {
+        "context_file": "",
+        "context_markers": {
+            "start": IntegrationBase.CONTEXT_MARKER_START,
+            "end": IntegrationBase.CONTEXT_MARKER_END,
+        },
+    }
+    path = project_root / _AGENT_CTX_EXT_CONFIG
+    if not path.exists():
+        return defaults
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, yaml.YAMLError):
+        return defaults
+    if not isinstance(raw, dict):
+        return defaults
+    return raw
+
+
+def _save_agent_context_config(
+    project_root: Path, config: dict[str, Any]
+) -> None:
+    """Persist *config* to the agent-context extension config file."""
+    path = project_root / _AGENT_CTX_EXT_CONFIG
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(config, default_flow_style=False, sort_keys=False), encoding="utf-8")
+
+
+def _update_agent_context_config_file(
+    project_root: Path,
+    context_file: str | None,
+    *,
+    preserve_markers: bool = True,
+) -> None:
+    """Update the agent-context extension config with *context_file*.
+
+    When *preserve_markers* is True (default), any existing
+    ``context_markers`` values are kept unchanged so user customisations
+    survive integration changes and reinit.  When False, the default
+    markers are written unconditionally.
+    """
+    from .integrations.base import IntegrationBase
+
+    cfg = _load_agent_context_config(project_root)
+    cfg["context_file"] = context_file or ""
+    if not preserve_markers or not isinstance(cfg.get("context_markers"), dict):
+        cfg["context_markers"] = {
+            "start": IntegrationBase.CONTEXT_MARKER_START,
+            "end": IntegrationBase.CONTEXT_MARKER_END,
+        }
+    _save_agent_context_config(project_root, cfg)
 
 
 def _get_skills_dir(project_path: Path, selected_ai: str) -> Path:
@@ -948,6 +413,86 @@ def _get_skills_dir(project_path: Path, selected_ai: str) -> Path:
     return project_path / ".agents" / "skills"
 
 
+def resolve_active_skills_dir(project_root: Path) -> Path | None:
+    """Return the active skills directory, creating it on demand when enabled.
+
+    Reads ``.specify/init-options.json`` to determine whether skills are
+    enabled and which agent was selected.  When ``ai_skills`` is true the
+    directory is created safely (symlink/containment checks); when false
+    only Kimi's native-skills fallback is honoured (directory must already
+    exist).
+
+    Returns:
+        The skills directory ``Path``, or ``None`` if skills are not active.
+
+    Raises:
+        ValueError: If the resolved skills path escapes the project root,
+            a parent component is a symlink, or a path component exists
+            but is not a directory.
+        OSError: If the directory cannot be created (e.g. permission denied).
+    """
+    from .shared_infra import _ensure_safe_shared_directory
+
+    opts = load_init_options(project_root)
+    if not isinstance(opts, dict):
+        opts = {}
+
+    agent = opts.get("ai")
+    if not isinstance(agent, str) or not agent:
+        return None
+
+    ai_skills_enabled = bool(opts.get("ai_skills"))
+    if not ai_skills_enabled and agent != "kimi":
+        return None
+
+    skills_dir = _get_skills_dir(project_root, agent)
+
+    if not ai_skills_enabled:
+        # Kimi native-skills fallback: use the directory only if it exists.
+        if not skills_dir.is_dir():
+            return None
+        _ensure_safe_shared_directory(
+            project_root, skills_dir,
+            create=False, context="agent skills directory",
+        )
+        return skills_dir
+
+    # ai_skills is explicitly enabled — create the directory safely.
+    _ensure_safe_shared_directory(
+        project_root, skills_dir, context="agent skills directory",
+    )
+    return skills_dir
+
+
+def _cli_error_detail(exc: BaseException) -> str:
+    """Return a compact one-line exception detail for CLI output."""
+    detail = str(exc).replace("\n", " ").strip()
+    return detail or exc.__class__.__name__
+
+
+def _cli_phase_label(phase: str, target_kind: str, target: str | None = None) -> str:
+    """Format a stable operation label for user-visible diagnostics."""
+    label = f"{phase} {target_kind}".strip()
+    if target:
+        label = f"{label} '{target}'"
+    return label
+
+
+def _print_cli_warning(
+    phase: str,
+    target_kind: str,
+    target: str | None,
+    exc: BaseException,
+    *,
+    continuing: str | None = None,
+) -> None:
+    """Print a warning that names the failed CLI phase and target."""
+    label = _cli_phase_label(phase, target_kind, target)
+    console.print(f"[yellow]Warning:[/yellow] Failed to {label}: {_cli_error_detail(exc)}")
+    if continuing:
+        console.print(f"[dim]{continuing}[/dim]")
+
+
 # Constants kept for backward compatibility with presets and extensions.
 DEFAULT_SKILLS_DIR = ".agents/skills"
 SKILL_DESCRIPTIONS = {
@@ -960,679 +505,29 @@ SKILL_DESCRIPTIONS = {
     "constitution": "Create or update project governing principles and development guidelines.",
     "checklist": "Generate custom quality checklists for validating requirements completeness and clarity.",
     "taskstoissues": "Convert tasks from tasks.md into GitHub issues.",
+    # Custom Spec-kit commands
+    "brainstorm": "Interactive product brainstorming and specification workflow to define requirements and tech stack.",
+    "brutalreview": "Perform a brutally honest review of code, UX, security, and product strategy.",
+    "build-fix": "Incrementally fix build and type errors with minimal, safe changes.",
+    "code-review": "Comprehensive security and quality review of uncommitted changes.",
+    "initiate": "Generate project constitution and development guidelines from specs.",
+    "plan-with-opus": "Create a detailed implementation plan without writing code (planning only).",
+    "progress": "Check project progression, track tasks, and present a status report.",
+    "refactor-clean": "Safely identify and remove dead code with verification tests.",
+    "security-scan": "Perform a security audit checklist covering common vulnerabilities and patterns.",
+    "smart-push": "Analyze changes, group into logical commits, and push to remote.",
+    "tdd": "Enforce Test-Driven Development (TDD) by writing tests before implementing features.",
+    "uidesign": "Design user interfaces and generate component specifications with interactive layouts.",
+    "update-upstream": "Intelligently sync your fork with the upstream spec-kit repository.",
+    "verify": "Run verification checks to ensure codebase correctness and quality.",
 }
 
 
-@app.command()
-def init(
-    project_name: str = typer.Argument(None, help="Name for your new project directory (optional if using --here, or use '.' for current directory)"),
-    ai_assistant: str = typer.Option(None, "--ai", help=AI_ASSISTANT_HELP),
-    ai_commands_dir: str = typer.Option(None, "--ai-commands-dir", help="Directory for agent command files (required with --ai generic, e.g. .myagent/commands/)"),
-    script_type: str = typer.Option(None, "--script", help="Script type to use: sh or ps"),
-    ignore_agent_tools: bool = typer.Option(False, "--ignore-agent-tools", help="Skip checks for coding agent tools like Claude Code"),
-    no_git: bool = typer.Option(False, "--no-git", help="Skip git repository initialization"),
-    here: bool = typer.Option(False, "--here", help="Initialize project in the current directory instead of creating a new one"),
-    force: bool = typer.Option(False, "--force", help="Force merge/overwrite when using --here (skip confirmation)"),
-    skip_tls: bool = typer.Option(False, "--skip-tls", help="Deprecated (no-op). Previously: skip SSL/TLS verification.", hidden=True),
-    debug: bool = typer.Option(False, "--debug", help="Deprecated (no-op). Previously: show verbose diagnostic output.", hidden=True),
-    github_token: str = typer.Option(None, "--github-token", help="Deprecated (no-op). Previously: GitHub token for API requests.", hidden=True),
-    ai_skills: bool = typer.Option(False, "--ai-skills", help="Install Prompt.MD templates as agent skills (requires --ai)"),
-    offline: bool = typer.Option(False, "--offline", help="Deprecated (no-op). All scaffolding now uses bundled assets.", hidden=True),
-    preset: str = typer.Option(None, "--preset", help="Install a preset during initialization (by preset ID)"),
-    branch_numbering: str = typer.Option(None, "--branch-numbering", help="Branch numbering strategy: 'sequential' (001, 002, …, 1000, … — expands past 999 automatically) or 'timestamp' (YYYYMMDD-HHMMSS)"),
-    integration: str = typer.Option(None, "--integration", help="Use the new integration system (e.g. --integration copilot). Mutually exclusive with --ai."),
-    integration_options: str = typer.Option(None, "--integration-options", help='Options for the integration (e.g. --integration-options="--commands-dir .myagent/cmds")'),
-):
-    """
-    Initialize a new Specify project.
+# ===== init command =====
+# Moved to commands/init.py — registered here to preserve CLI surface.
+from .commands import init as _init_cmd  # noqa: E402
+_init_cmd.register(app)
 
-    By default, project files are downloaded from the latest GitHub release.
-    Use --offline to scaffold from assets bundled inside the specify-cli
-    package instead (no internet access required, ideal for air-gapped or
-    enterprise environments).
-
-    NOTE: Starting with v0.6.0, bundled assets will be used by default and
-    the --offline flag will be removed. The GitHub download path will be
-    retired because bundled assets eliminate the need for network access,
-    avoid proxy/firewall issues, and guarantee that templates always match
-    the installed CLI version.
-
-    This command will:
-    1. Check that required tools are installed (git is optional)
-    2. Let you choose your coding agent integration, or default to Copilot
-       in non-interactive sessions
-    3. Download template from GitHub (or use bundled assets with --offline)
-    4. Initialize a fresh git repository (if not --no-git and no existing repo)
-    5. Optionally set up coding agent integration commands
-
-    Examples:
-        specify init my-project
-        specify init my-project --integration claude
-        specify init my-project --integration copilot --no-git
-        specify init --ignore-agent-tools my-project
-        specify init . --integration claude         # Initialize in current directory
-        specify init .                     # Initialize in current directory (interactive integration selection)
-        specify init --here --integration claude    # Alternative syntax for current directory
-        specify init --here --integration codex --integration-options="--skills"
-        specify init --here --integration codebuddy
-        specify init --here --integration vibe      # Initialize with Mistral Vibe support
-        specify init --here
-        specify init --here --force  # Skip confirmation when current directory not empty
-        specify init my-project --integration claude   # Claude installs skills by default
-        specify init --here --integration gemini
-        specify init my-project --integration generic --integration-options="--commands-dir .myagent/commands/"  # Bring your own agent; requires --commands-dir
-        specify init my-project --integration claude --preset healthcare-compliance  # With preset
-    """
-
-    show_banner()
-    ai_deprecation_warning: str | None = None
-
-    # Detect when option values are likely misinterpreted flags (parameter ordering issue)
-    if ai_assistant and ai_assistant.startswith("--"):
-        console.print(f"[red]Error:[/red] Invalid value for --ai: '{ai_assistant}'")
-        console.print("[yellow]Hint:[/yellow] Did you forget to provide a value for --ai?")
-        console.print("[yellow]Example:[/yellow] specify init --integration claude --here")
-        console.print(f"[yellow]Available agents:[/yellow] {', '.join(AGENT_CONFIG.keys())}")
-        raise typer.Exit(1)
-
-    if ai_commands_dir and ai_commands_dir.startswith("--"):
-        console.print(f"[red]Error:[/red] Invalid value for --ai-commands-dir: '{ai_commands_dir}'")
-        console.print("[yellow]Hint:[/yellow] Did you forget to provide a value for --ai-commands-dir?")
-        console.print("[yellow]Example:[/yellow] specify init --integration generic --integration-options=\"--commands-dir .myagent/commands/\"")
-        raise typer.Exit(1)
-
-    if ai_assistant:
-        ai_assistant = AI_ASSISTANT_ALIASES.get(ai_assistant, ai_assistant)
-
-    # --integration and --ai are mutually exclusive
-    if integration and ai_assistant:
-        console.print("[red]Error:[/red] --integration and --ai are mutually exclusive")
-        raise typer.Exit(1)
-
-    # Resolve the integration — either from --integration or --ai
-    from .integrations import INTEGRATION_REGISTRY, get_integration
-    if integration:
-        resolved_integration = get_integration(integration)
-        if not resolved_integration:
-            console.print(f"[red]Error:[/red] Unknown integration: '{integration}'")
-            available = ", ".join(sorted(INTEGRATION_REGISTRY))
-            console.print(f"[yellow]Available integrations:[/yellow] {available}")
-            raise typer.Exit(1)
-        ai_assistant = integration
-    elif ai_assistant:
-        resolved_integration = get_integration(ai_assistant)
-        if not resolved_integration:
-            console.print(f"[red]Error:[/red] Unknown agent '{ai_assistant}'. Choose from: {', '.join(sorted(INTEGRATION_REGISTRY))}")
-            raise typer.Exit(1)
-        ai_deprecation_warning = _build_ai_deprecation_warning(
-            resolved_integration.key,
-            ai_commands_dir=ai_commands_dir,
-        )
-
-    # Deprecation warnings for --ai-skills and --ai-commands-dir (only when
-    # an integration has been resolved from --ai or --integration)
-    if ai_assistant or integration:
-        if ai_skills:
-            from .integrations.base import SkillsIntegration as _SkillsCheck
-            if isinstance(resolved_integration, _SkillsCheck):
-                console.print(
-                    "[dim]Note: --ai-skills is not needed; "
-                    "skills are the default for this integration.[/dim]"
-                )
-            else:
-                console.print(
-                    "[dim]Note: --ai-skills has no effect with "
-                    f"{resolved_integration.key}; this integration uses commands, not skills.[/dim]"
-                )
-        if ai_commands_dir and resolved_integration.key != "generic":
-            console.print(
-                "[dim]Note: --ai-commands-dir is deprecated; "
-                'use [bold]--integration generic --integration-options="--commands-dir <dir>"[/bold] instead.[/dim]'
-            )
-
-    if no_git:
-        console.print(
-            "[yellow]⚠️  --no-git is deprecated and will be removed in v0.10.0.[/yellow]\n"
-            "[yellow]The git extension will no longer be enabled by default "
-            "— use the [bold]specify extension[/bold] commands to install or enable the git extension if needed.[/yellow]"
-        )
-
-    if project_name == ".":
-        here = True
-        project_name = None  # Clear project_name to use existing validation logic
-
-    if here and project_name:
-        console.print("[red]Error:[/red] Cannot specify both project name and --here flag")
-        raise typer.Exit(1)
-
-    if not here and not project_name:
-        console.print("[red]Error:[/red] Must specify either a project name, use '.' for current directory, or use --here flag")
-        raise typer.Exit(1)
-
-    if ai_skills and not ai_assistant:
-        console.print("[red]Error:[/red] --ai-skills requires --ai to be specified")
-        console.print("[yellow]Usage:[/yellow] specify init <project> --ai <agent> --ai-skills")
-        raise typer.Exit(1)
-
-    BRANCH_NUMBERING_CHOICES = {"sequential", "timestamp"}
-    if branch_numbering and branch_numbering not in BRANCH_NUMBERING_CHOICES:
-        console.print(f"[red]Error:[/red] Invalid --branch-numbering value '{branch_numbering}'. Choose from: {', '.join(sorted(BRANCH_NUMBERING_CHOICES))}")
-        raise typer.Exit(1)
-
-    dir_existed_before = False
-    if here:
-        project_name = Path.cwd().name
-        project_path = Path.cwd()
-        dir_existed_before = True
-
-        existing_items = list(project_path.iterdir())
-        if existing_items:
-            console.print(f"[yellow]Warning:[/yellow] Current directory is not empty ({len(existing_items)} items)")
-            console.print("[yellow]Template files will be merged with existing content and may overwrite existing files[/yellow]")
-            if force:
-                console.print("[cyan]--force supplied: skipping confirmation and proceeding with merge[/cyan]")
-            else:
-                response = typer.confirm("Do you want to continue?")
-                if not response:
-                    console.print("[yellow]Operation cancelled[/yellow]")
-                    raise typer.Exit(0)
-    else:
-        project_path = Path(project_name).resolve()
-        dir_existed_before = project_path.exists()
-        if project_path.exists():
-            if not project_path.is_dir():
-                console.print(f"[red]Error:[/red] '{project_name}' exists but is not a directory.")
-                raise typer.Exit(1)
-            existing_items = list(project_path.iterdir())
-            if force:
-                if existing_items:
-                    console.print(f"[yellow]Warning:[/yellow] Directory '{project_name}' is not empty ({len(existing_items)} items)")
-                    console.print("[yellow]Template files will be merged with existing content and may overwrite existing files[/yellow]")
-                console.print(f"[cyan]--force supplied: merging into existing directory '[cyan]{project_name}[/cyan]'[/cyan]")
-            else:
-                error_panel = Panel(
-                    f"Directory already exists: '[cyan]{project_name}[/cyan]'\n"
-                    "Please choose a different project name or remove the existing directory.\n"
-                    "Use [bold]--force[/bold] to merge into the existing directory.",
-                    title="[red]Directory Conflict[/red]",
-                    border_style="red",
-                    padding=(1, 2)
-                )
-                console.print()
-                console.print(error_panel)
-                raise typer.Exit(1)
-
-    if ai_assistant:
-        if ai_assistant not in AGENT_CONFIG:
-            console.print(f"[red]Error:[/red] Invalid AI assistant '{ai_assistant}'. Choose from: {', '.join(AGENT_CONFIG.keys())}")
-            raise typer.Exit(1)
-        selected_ai = ai_assistant
-    elif not _stdin_is_interactive():
-        console.print(
-            f"[dim]Non-interactive session detected: defaulting to '{DEFAULT_INIT_INTEGRATION}'. "
-            "Use --integration to choose a different agent.[/dim]"
-        )
-        selected_ai = DEFAULT_INIT_INTEGRATION
-    else:
-        # Create options dict for selection (agent_key: display_name)
-        ai_choices = {key: config["name"] for key, config in AGENT_CONFIG.items()}
-        selected_ai = select_with_arrows(
-            ai_choices,
-            "Choose your coding agent integration:",
-            DEFAULT_INIT_INTEGRATION,
-        )
-
-    # Auto-promote interactively selected agents to the integration path
-    if not ai_assistant:
-        resolved_integration = get_integration(selected_ai)
-        if not resolved_integration:
-            console.print(f"[red]Error:[/red] Unknown agent '{selected_ai}'")
-            raise typer.Exit(1)
-
-    # Validate --ai-commands-dir usage.
-    # Skip validation when --integration-options is provided — the integration
-    # will validate its own options in setup().
-    if selected_ai == "generic" and not integration_options:
-        if not ai_commands_dir:
-            console.print("[red]Error:[/red] --ai-commands-dir is required when using --ai generic or --integration generic")
-            console.print('[dim]Example: specify init my-project --integration generic --integration-options="--commands-dir .myagent/commands/"[/dim]')
-            raise typer.Exit(1)
-
-    current_dir = Path.cwd()
-
-    setup_lines = [
-        "[cyan]Specify Project Setup[/cyan]",
-        "",
-        f"{'Project':<15} [green]{project_path.name}[/green]",
-        f"{'Working Path':<15} [dim]{current_dir}[/dim]",
-    ]
-
-    if not here:
-        setup_lines.append(f"{'Target Path':<15} [dim]{project_path}[/dim]")
-
-    console.print(Panel("\n".join(setup_lines), border_style="cyan", padding=(1, 2)))
-
-    should_init_git = False
-    if not no_git:
-        should_init_git = check_tool("git")
-        if not should_init_git:
-            console.print("[yellow]Git not found - will skip repository initialization[/yellow]")
-
-    if not ignore_agent_tools:
-        agent_config = AGENT_CONFIG.get(selected_ai)
-        if agent_config and agent_config["requires_cli"]:
-            install_url = agent_config["install_url"]
-            if not check_tool(selected_ai):
-                error_panel = Panel(
-                    f"[cyan]{selected_ai}[/cyan] not found\n"
-                    f"Install from: [cyan]{install_url}[/cyan]\n"
-                    f"{agent_config['name']} is required to continue with this project type.\n\n"
-                    "Tip: Use [cyan]--ignore-agent-tools[/cyan] to skip this check",
-                    title="[red]Agent Detection Error[/red]",
-                    border_style="red",
-                    padding=(1, 2)
-                )
-                console.print()
-                console.print(error_panel)
-                raise typer.Exit(1)
-
-    if script_type:
-        if script_type not in SCRIPT_TYPE_CHOICES:
-            console.print(f"[red]Error:[/red] Invalid script type '{script_type}'. Choose from: {', '.join(SCRIPT_TYPE_CHOICES.keys())}")
-            raise typer.Exit(1)
-        selected_script = script_type
-    else:
-        default_script = "ps" if os.name == "nt" else "sh"
-
-        if _stdin_is_interactive():
-            selected_script = select_with_arrows(SCRIPT_TYPE_CHOICES, "Choose script type (or press Enter)", default_script)
-        else:
-            selected_script = default_script
-
-    console.print(f"[cyan]Selected coding agent integration:[/cyan] {selected_ai}")
-    console.print(f"[cyan]Selected script type:[/cyan] {selected_script}")
-
-    tracker = StepTracker("Initialize Specify Project")
-
-    sys._specify_tracker_active = True
-
-    tracker.add("precheck", "Check required tools")
-    tracker.complete("precheck", "ok")
-    tracker.add("ai-select", "Select coding agent integration")
-    tracker.complete("ai-select", f"{selected_ai}")
-    tracker.add("script-select", "Select script type")
-    tracker.complete("script-select", selected_script)
-
-    tracker.add("integration", "Install integration")
-    tracker.add("shared-infra", "Install shared infrastructure")
-
-    for key, label in [
-        ("chmod", "Ensure scripts executable"),
-        ("constitution", "Constitution setup"),
-        ("git", "Install git extension"),
-        ("workflow", "Install bundled workflow"),
-        ("final", "Finalize"),
-    ]:
-        tracker.add(key, label)
-
-    git_default_notice = False
-
-    with Live(tracker.render(), console=console, refresh_per_second=8, transient=True) as live:
-        tracker.attach_refresh(lambda: live.update(tracker.render()))
-        try:
-            # Integration-based scaffolding
-            from .integrations.manifest import IntegrationManifest
-            tracker.start("integration")
-            manifest = IntegrationManifest(
-                resolved_integration.key, project_path, version=get_speckit_version()
-            )
-
-            # Forward all legacy CLI flags to the integration as parsed_options.
-            # Integrations receive every option and decide what to use;
-            # irrelevant keys are simply ignored by the integration's setup().
-            integration_parsed_options: dict[str, Any] = {}
-            if ai_commands_dir:
-                integration_parsed_options["commands_dir"] = ai_commands_dir
-            if ai_skills:
-                integration_parsed_options["skills"] = True
-            # Parse --integration-options and merge into parsed_options so
-            # flags like --skills reach the integration's setup().
-            if integration_options:
-                extra = _parse_integration_options(resolved_integration, integration_options)
-                if extra:
-                    integration_parsed_options.update(extra)
-
-            resolved_integration.setup(
-                project_path, manifest,
-                parsed_options=integration_parsed_options or None,
-                script_type=selected_script,
-                raw_options=integration_options,
-            )
-            manifest.save()
-
-            integration_settings = _with_integration_setting(
-                {},
-                resolved_integration.key,
-                resolved_integration,
-                script_type=selected_script,
-                raw_options=integration_options,
-                parsed_options=integration_parsed_options or None,
-            )
-            _write_integration_json(
-                project_path,
-                resolved_integration.key,
-                [resolved_integration.key],
-                integration_settings,
-            )
-
-            tracker.complete("integration", resolved_integration.config.get("name", resolved_integration.key))
-
-            # Install shared infrastructure (scripts, templates)
-            tracker.start("shared-infra")
-            _install_shared_infra_or_exit(
-                project_path,
-                selected_script,
-                tracker=tracker,
-                force=force,
-                invoke_separator=resolved_integration.effective_invoke_separator(integration_parsed_options),
-            )
-            tracker.complete("shared-infra", f"scripts ({selected_script}) + templates")
-
-            ensure_constitution_from_template(project_path, tracker=tracker)
-
-            if not no_git:
-                tracker.start("git")
-                git_messages = []
-                git_has_error = False
-                # Step 1: Initialize git repo if needed
-                if is_git_repo(project_path):
-                    git_messages.append("existing repo detected")
-                elif should_init_git:
-                    success, error_msg = init_git_repo(project_path, quiet=True)
-                    if success:
-                        git_messages.append("initialized")
-                    else:
-                        git_has_error = True
-                        # Sanitize multi-line error_msg to single line for tracker
-                        if error_msg:
-                            sanitized = error_msg.replace('\n', ' ').strip()
-                            git_messages.append(f"init failed: {sanitized[:120]}")
-                        else:
-                            git_messages.append("init failed")
-                else:
-                    git_messages.append("git not available")
-                # Step 2: Install bundled git extension
-                try:
-                    from .extensions import ExtensionManager
-                    bundled_path = _locate_bundled_extension("git")
-                    if bundled_path:
-                        manager = ExtensionManager(project_path)
-                        if manager.registry.is_installed("git"):
-                            git_messages.append("extension already installed")
-                        else:
-                            manager.install_from_directory(
-                                bundled_path, get_speckit_version()
-                            )
-                            git_default_notice = True
-                            git_messages.append("extension installed")
-                    else:
-                        git_has_error = True
-                        git_messages.append("bundled extension not found")
-                except Exception as ext_err:
-                    git_has_error = True
-                    sanitized_ext = str(ext_err).replace('\n', ' ').strip()
-                    git_messages.append(
-                        f"extension install failed: {sanitized_ext[:120]}"
-                    )
-                summary = "; ".join(git_messages)
-                if git_has_error:
-                    tracker.error("git", summary)
-                else:
-                    tracker.complete("git", summary)
-            else:
-                tracker.skip("git", "--no-git flag")
-
-            # Install bundled speckit workflow
-            try:
-                bundled_wf = _locate_bundled_workflow("speckit")
-                if bundled_wf:
-                    from .workflows.catalog import WorkflowRegistry
-                    from .workflows.engine import WorkflowDefinition
-                    wf_registry = WorkflowRegistry(project_path)
-                    if wf_registry.is_installed("speckit"):
-                        tracker.complete("workflow", "already installed")
-                    else:
-                        import shutil as _shutil
-                        dest_wf = project_path / ".specify" / "workflows" / "speckit"
-                        dest_wf.mkdir(parents=True, exist_ok=True)
-                        _shutil.copy2(
-                            bundled_wf / "workflow.yml",
-                            dest_wf / "workflow.yml",
-                        )
-                        definition = WorkflowDefinition.from_yaml(dest_wf / "workflow.yml")
-                        wf_registry.add("speckit", {
-                            "name": definition.name,
-                            "version": definition.version,
-                            "description": definition.description,
-                            "source": "bundled",
-                        })
-                        tracker.complete("workflow", "speckit installed")
-                else:
-                    tracker.skip("workflow", "bundled workflow not found")
-            except Exception as wf_err:
-                sanitized_wf = str(wf_err).replace('\n', ' ').strip()
-                tracker.error("workflow", f"install failed: {sanitized_wf[:120]}")
-
-            # Fix permissions after all installs (scripts + extensions)
-            ensure_executable_scripts(project_path, tracker=tracker)
-
-            # Persist the CLI options so later operations (e.g. preset add)
-            # can adapt their behaviour without re-scanning the filesystem.
-            # Must be saved BEFORE preset install so _get_skills_dir() works.
-            init_opts = {
-                "ai": selected_ai,
-                "integration": resolved_integration.key,
-                "branch_numbering": branch_numbering or "sequential",
-                "context_file": resolved_integration.context_file,
-                "here": here,
-                "script": selected_script,
-                "speckit_version": get_speckit_version(),
-            }
-            # Ensure ai_skills is set for SkillsIntegration so downstream
-            # tools (extensions, presets) emit SKILL.md overrides correctly.
-            # Also set for integrations running in skills mode (e.g. Copilot
-            # with --skills).
-            from .integrations.base import SkillsIntegration as _SkillsPersist
-            if isinstance(resolved_integration, _SkillsPersist) or getattr(resolved_integration, "_skills_mode", False):
-                init_opts["ai_skills"] = True
-            save_init_options(project_path, init_opts)
-
-            # Install preset if specified
-            if preset:
-                try:
-                    from .presets import PresetManager, PresetCatalog, PresetError
-                    preset_manager = PresetManager(project_path)
-                    speckit_ver = get_speckit_version()
-
-                    # Try local directory first, then bundled, then catalog
-                    local_path = Path(preset).resolve()
-                    if local_path.is_dir() and (local_path / "preset.yml").exists():
-                        preset_manager.install_from_directory(local_path, speckit_ver)
-                    else:
-                        bundled_path = _locate_bundled_preset(preset)
-                        if bundled_path:
-                            preset_manager.install_from_directory(bundled_path, speckit_ver)
-                        else:
-                            preset_catalog = PresetCatalog(project_path)
-                            pack_info = preset_catalog.get_pack_info(preset)
-                            if not pack_info:
-                                console.print(f"[yellow]Warning:[/yellow] Preset '{preset}' not found in catalog. Skipping.")
-                            elif pack_info.get("bundled") and not pack_info.get("download_url"):
-                                from .extensions import REINSTALL_COMMAND
-                                console.print(
-                                    f"[yellow]Warning:[/yellow] Preset '{preset}' is bundled with spec-kit "
-                                    f"but could not be found in the installed package."
-                                )
-                                console.print(
-                                    "This usually means the spec-kit installation is incomplete or corrupted."
-                                )
-                                console.print(f"Try reinstalling: {REINSTALL_COMMAND}")
-                            else:
-                                zip_path = None
-                                try:
-                                    zip_path = preset_catalog.download_pack(preset)
-                                    preset_manager.install_from_zip(zip_path, speckit_ver)
-                                except PresetError as preset_err:
-                                    console.print(f"[yellow]Warning:[/yellow] Failed to install preset '{preset}': {preset_err}")
-                                finally:
-                                    if zip_path is not None:
-                                        # Clean up downloaded ZIP to avoid cache accumulation
-                                        try:
-                                            zip_path.unlink(missing_ok=True)
-                                        except OSError:
-                                            # Best-effort cleanup; failure to delete is non-fatal
-                                            pass
-                except Exception as preset_err:
-                    console.print(f"[yellow]Warning:[/yellow] Failed to install preset: {preset_err}")
-
-            tracker.complete("final", "project ready")
-        except (typer.Exit, SystemExit):
-            raise
-        except Exception as e:
-            tracker.error("final", str(e))
-            console.print(Panel(f"Initialization failed: {e}", title="Failure", border_style="red"))
-            if debug:
-                _env_pairs = [
-                    ("Python", sys.version.split()[0]),
-                    ("Platform", sys.platform),
-                    ("CWD", str(Path.cwd())),
-                ]
-                _label_width = max(len(k) for k, _ in _env_pairs)
-                env_lines = [f"{k.ljust(_label_width)} → [bright_black]{v}[/bright_black]" for k, v in _env_pairs]
-                console.print(Panel("\n".join(env_lines), title="Debug Environment", border_style="magenta"))
-            if not here and project_path.exists() and not dir_existed_before:
-                shutil.rmtree(project_path)
-            raise typer.Exit(1)
-        finally:
-            pass
-
-    console.print(tracker.render())
-    console.print("\n[bold green]Project ready.[/bold green]")
-
-    # Agent folder security notice
-    agent_config = AGENT_CONFIG.get(selected_ai)
-    if agent_config:
-        agent_folder = ai_commands_dir if selected_ai == "generic" else agent_config["folder"]
-        if agent_folder:
-            security_notice = Panel(
-                f"Some agents may store credentials, auth tokens, or other identifying and private artifacts in the agent folder within your project.\n"
-                f"Consider adding [cyan]{agent_folder}[/cyan] (or parts of it) to [cyan].gitignore[/cyan] to prevent accidental credential leakage.",
-                title="[yellow]Agent Folder Security[/yellow]",
-                border_style="yellow",
-                padding=(1, 2)
-            )
-            console.print()
-            console.print(security_notice)
-
-    if ai_deprecation_warning:
-        deprecation_notice = Panel(
-            ai_deprecation_warning,
-            title="[bold red]Deprecation Warning[/bold red]",
-            border_style="red",
-            padding=(1, 2),
-        )
-        console.print()
-        console.print(deprecation_notice)
-
-    if git_default_notice:
-        default_change_notice = Panel(
-            "The git extension is currently enabled by default during [bold]specify init[/bold].\n"
-            "Starting in [bold]v0.10.0[/bold], this will require explicit opt-in.\n"
-            "Use [bold]specify extension add git[/bold] after init when needed.",
-            title="[yellow]Notice: Git Default Changing[/yellow]",
-            border_style="yellow",
-            padding=(1, 2),
-        )
-        console.print()
-        console.print(default_change_notice)
-
-    steps_lines = []
-    if not here:
-        steps_lines.append(f"1. Go to the project folder: [cyan]cd {project_name}[/cyan]")
-        step_num = 2
-    else:
-        steps_lines.append("1. You're already in the project directory!")
-        step_num = 2
-
-    # Determine skill display mode for the next-steps panel.
-    # Skills integrations (codex, claude, kimi, agy, trae, cursor-agent, copilot, devin) should show skill invocation syntax.
-    from .integrations.base import SkillsIntegration as _SkillsInt
-    _is_skills_integration = isinstance(resolved_integration, _SkillsInt) or getattr(resolved_integration, "_skills_mode", False)
-
-    codex_skill_mode = selected_ai == "codex" and (ai_skills or _is_skills_integration)
-    claude_skill_mode = selected_ai == "claude" and (ai_skills or _is_skills_integration)
-    kimi_skill_mode = selected_ai == "kimi"
-    agy_skill_mode = selected_ai == "agy" and _is_skills_integration
-    trae_skill_mode = selected_ai == "trae"
-    cursor_agent_skill_mode = selected_ai == "cursor-agent" and (ai_skills or _is_skills_integration)
-    copilot_skill_mode = selected_ai == "copilot" and _is_skills_integration
-    devin_skill_mode = selected_ai == "devin"
-    native_skill_mode = codex_skill_mode or claude_skill_mode or kimi_skill_mode or agy_skill_mode or trae_skill_mode or cursor_agent_skill_mode or copilot_skill_mode or devin_skill_mode
-
-    if codex_skill_mode and not ai_skills:
-        # Integration path installed skills; show the helpful notice
-        steps_lines.append(f"{step_num}. Start Codex in this project directory; spec-kit skills were installed to [cyan].agents/skills[/cyan]")
-        step_num += 1
-    if claude_skill_mode and not ai_skills:
-        steps_lines.append(f"{step_num}. Start Claude in this project directory; spec-kit skills were installed to [cyan].claude/skills[/cyan]")
-        step_num += 1
-    if cursor_agent_skill_mode and not ai_skills:
-        steps_lines.append(f"{step_num}. Start Cursor Agent in this project directory; spec-kit skills were installed to [cyan].cursor/skills[/cyan]")
-        step_num += 1
-    if devin_skill_mode:
-        steps_lines.append(f"{step_num}. Start Devin in this project directory; spec-kit skills were installed to [cyan].devin/skills[/cyan]")
-        step_num += 1
-    usage_label = "skills" if native_skill_mode else "slash commands"
-
-    def _display_cmd(name: str) -> str:
-        if codex_skill_mode or agy_skill_mode or trae_skill_mode:
-            return f"$speckit-{name}"
-        if claude_skill_mode:
-            return f"/speckit-{name}"
-        if kimi_skill_mode:
-            return f"/skill:speckit-{name}"
-        if cursor_agent_skill_mode or copilot_skill_mode or devin_skill_mode:
-            return f"/speckit-{name}"
-        return f"/speckit.{name}"
-
-    steps_lines.append(f"{step_num}. Start using {usage_label} with your coding agent:")
-
-    steps_lines.append(f"   {step_num}.1 [cyan]{_display_cmd('constitution')}[/] - Establish project principles")
-    steps_lines.append(f"   {step_num}.2 [cyan]{_display_cmd('specify')}[/] - Create baseline specification")
-    steps_lines.append(f"   {step_num}.3 [cyan]{_display_cmd('plan')}[/] - Create implementation plan")
-    steps_lines.append(f"   {step_num}.4 [cyan]{_display_cmd('tasks')}[/] - Generate actionable tasks")
-    steps_lines.append(f"   {step_num}.5 [cyan]{_display_cmd('implement')}[/] - Execute implementation")
-
-    steps_panel = Panel("\n".join(steps_lines), title="Next Steps", border_style="cyan", padding=(1,2))
-    console.print()
-    console.print(steps_panel)
-
-    enhancement_intro = (
-        "Optional skills that you can use for your specs [bright_black](improve quality & confidence)[/bright_black]"
-        if native_skill_mode
-        else "Optional commands that you can use for your specs [bright_black](improve quality & confidence)[/bright_black]"
-    )
-    enhancement_lines = [
-        enhancement_intro,
-        "",
-        f"○ [cyan]{_display_cmd('clarify')}[/] [bright_black](optional)[/bright_black] - Ask structured questions to de-risk ambiguous areas before planning (run before [cyan]{_display_cmd('plan')}[/] if used)",
-        f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional)[/bright_black] - Cross-artifact consistency & alignment report (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
-        f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"
-    ]
-    enhancements_title = "Enhancement Skills" if native_skill_mode else "Enhancement Commands"
-    enhancements_panel = Panel("\n".join(enhancement_lines), title=enhancements_title, border_style="cyan", padding=(1,2))
-    console.print()
-    console.print(enhancements_panel)
 
 @app.command()
 def check():
@@ -1678,14 +573,60 @@ def check():
     if not any(agent_results.values()):
         console.print("[dim]Tip: Install a coding agent for the best experience[/dim]")
 
+    console.print("[dim]Tip: Run 'specify self check' to verify you have the latest CLI version[/dim]")
+
+
+def _feature_capabilities() -> dict[str, bool]:
+    """Return stable local CLI capability flags for humans and agents."""
+    return {
+        "controlled_multi_install_integrations": True,
+        "integration_use_command": True,
+        "multi_install_safe_registry_metadata": True,
+        "integration_upgrade_command": True,
+        "self_check_command": True,
+        "workflow_catalog": True,
+        "bundled_templates": True,
+    }
+
+
 @app.command()
-def version():
+def version(
+    features: bool = typer.Option(
+        False,
+        "--features",
+        help="Show local CLI feature capabilities.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit feature capabilities as JSON. Requires --features.",
+    ),
+):
     """Display version and system information."""
     import platform
 
-    show_banner()
-
     cli_version = get_speckit_version()
+
+    if json_output and not features:
+        console.print("[red]Error:[/red] --json requires --features.")
+        raise typer.Exit(1)
+
+    if features:
+        capabilities = _feature_capabilities()
+        if json_output:
+            payload = {"version": cli_version, "features": capabilities}
+            console.print(json.dumps(payload, indent=2))
+            return
+
+        console.print(f"Spec Kit CLI: {cli_version}")
+        console.print()
+        console.print("Features:")
+        for key, enabled in capabilities.items():
+            label = key.replace("_", " ")
+            console.print(f"- {label}: {'yes' if enabled else 'no'}")
+        return
+
+    show_banner()
 
     info_table = Table(show_header=False, box=None, padding=(0, 2))
     info_table.add_column("Key", style="cyan", justify="right")
@@ -1708,156 +649,7 @@ def version():
     console.print(panel)
     console.print()
 
-def _get_installed_version() -> str:
-    """Return the installed specify-cli distribution version or 'unknown'.
-
-    Uses importlib.metadata so the value reflects what was actually installed
-    by pip/uv/pipx — not a value read from pyproject.toml. This is
-    intentional for `specify self check`, which should reason about the
-    installed distribution rather than a source-tree fallback. Callers must
-    treat the sentinel string 'unknown' as an indeterminate value (see FR-020).
-    """
-
-    import importlib.metadata
-
-    metadata_errors = [importlib.metadata.PackageNotFoundError]
-    invalid_metadata_error = getattr(importlib.metadata, "InvalidMetadataError", None)
-    if invalid_metadata_error is not None:
-        metadata_errors.append(invalid_metadata_error)
-
-    try:
-        return importlib.metadata.version("specify-cli")
-    except tuple(metadata_errors):
-        return "unknown"
-
-def _normalize_tag(tag: str) -> str:
-    """Strip exactly one leading 'v' from a release tag.
-
-    Returns the rest of the string unchanged. This handles the common
-    'vX.Y.Z' tag convention in this repo; it MUST NOT strip more
-    aggressively (e.g., two leading 'v's keeps one).
-    """
-    return tag[1:] if tag.startswith("v") else tag
-
-def _is_newer(latest: str, current: str) -> bool:
-    """Return True iff `latest` is strictly greater than `current` under PEP 440.
-
-    Returns False whenever either side is 'unknown' or fails to parse; this
-    keeps the comparison indeterminate (rather than crashing or falsely
-    recommending a downgrade) on edge inputs.
-    """
-    if latest == "unknown" or current == "unknown":
-        return False
-    try:
-        return Version(latest) > Version(current)
-    except InvalidVersion:
-        return False
-
-
-def _fetch_latest_release_tag() -> tuple[str | None, str | None]:
-    """Return (tag, failure_category). Exactly one outbound call, 5 s timeout.
-
-    On success: (tag_name, None).
-    On a documented network/HTTP failure (added in T029/T030): (None, category).
-    On anything else — including a malformed response body — the exception
-    propagates; there is no catch-all (research D-006).
-    """
-    from .authentication.http import open_url
-
-    try:
-        with open_url(
-            GITHUB_API_LATEST,
-            timeout=5,
-            extra_headers={"Accept": "application/vnd.github+json"},
-        ) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-            tag = payload.get("tag_name")
-            if not isinstance(tag, str) or not tag:
-                raise ValueError("GitHub API response missing valid tag_name")
-            return tag, None
-    except urllib.error.HTTPError as e:
-        # Order matters: HTTPError is a subclass of URLError.
-        if e.code == 403:
-            return None, (
-                "rate limited (configure ~/.specify/auth.json with a GitHub token)"
-            )
-        return None, f"HTTP {e.code}"
-    except (urllib.error.URLError, OSError):
-        return None, "offline or timeout"
-
-
-# ===== Self Commands =====
-self_app = typer.Typer(
-    name="self",
-    help="Manage the specify CLI itself (read-only check and reserved upgrade command).",
-    add_completion=False,
-)
-app.add_typer(self_app, name="self")
-
-@self_app.command("check")
-def self_check() -> None:
-    """Check whether a newer specify-cli release is available. Read-only.
-
-    This command only checks for updates; it does not modify your installation.
-    The reserved (and currently non-destructive) `specify self upgrade` command
-    is the name that a future release will use for actual self-upgrade — its
-    behavior is not implemented in this release and is intentionally out of
-    scope here. See `specify self upgrade --help` for its current status.
-    """
-
-    installed = _get_installed_version()
-    tag, failure_reason = _fetch_latest_release_tag()
-
-    if tag is None:
-        # Graceful-failure path (FR-008). `failure_reason` is one of the
-        # enumerated strings produced by _fetch_latest_release_tag() — it
-        # never contains a URL, headers, response body, or traceback.
-        assert failure_reason is not None
-        console.print(f"Installed: {installed}")
-        console.print(f"[yellow]Could not check latest release:[/yellow] {failure_reason}")
-        return
-
-    latest_normalized = _normalize_tag(tag)
-
-    if installed == "unknown":
-        # FR-020: surface the latest release and the recovery action even
-        # when the local distribution metadata is unavailable.
-        console.print("Current version could not be determined.")
-        console.print(f"Latest release: {latest_normalized}")
-        console.print("\nTo reinstall:")
-        console.print("  uv tool install specify-cli --force \\")
-        console.print(f"    --from git+https://github.com/github/spec-kit.git@{tag}")
-        return
-
-    if _is_newer(latest_normalized, installed):
-        console.print(f"[green]Update available:[/green] {installed} → {latest_normalized}")
-        console.print("\nTo upgrade:")
-        console.print("  uv tool install specify-cli --force \\")
-        console.print(f"    --from git+https://github.com/github/spec-kit.git@{tag}")
-        return
-
-    # Installed is parseable AND is >= latest → "up to date" (FR-006).
-    # Also reached when the tag is unparseable (InvalidVersion) → _is_newer
-    # returns False, and the up-to-date branch is the safer default per
-    # FR-004 / test T016.
-    console.print(f"[green]Up to date:[/green] {installed}")
-
-
-@self_app.command("upgrade")
-def self_upgrade() -> None:
-    """Reserved command surface for self-upgrade; not implemented in this release.
-
-    This command is a documented non-destructive stub in this release: it
-    performs no outbound network request, no install-method detection, and
-    invokes no installer. It prints a three-line guidance message and exits 0.
-    Actual self-upgrade is planned as follow-up work.
-
-    Use `specify self check` today to see whether a newer release is available
-    and to get a copy-pasteable reinstall command.
-    """
-    console.print("specify self upgrade is not implemented yet.")
-    console.print("Run 'specify self check' to see whether a newer release is available.")
-    console.print("Actual self-upgrade is planned as follow-up work.")
+app.add_typer(_self_app, name="self")
 
 
 # ===== Extension Commands =====
@@ -1891,27 +683,6 @@ preset_catalog_app = typer.Typer(
 preset_app.add_typer(preset_catalog_app, name="catalog")
 
 
-def get_speckit_version() -> str:
-    """Get current spec-kit version."""
-    import importlib.metadata
-    try:
-        return importlib.metadata.version("specify-cli")
-    except Exception:
-        # Fallback: try reading from pyproject.toml
-        try:
-            import tomllib
-            pyproject_path = _repo_root() / "pyproject.toml"
-            if pyproject_path.exists():
-                with open(pyproject_path, "rb") as f:
-                    data = tomllib.load(f)
-                    return data.get("project", {}).get("version", "unknown")
-        except Exception:
-            # Intentionally ignore any errors while reading/parsing pyproject.toml.
-            # If this lookup fails for any reason, we fall back to returning "unknown" below.
-            pass
-    return "unknown"
-
-
 # ===== Integration Commands =====
 
 integration_app = typer.Typer(
@@ -1930,35 +701,37 @@ integration_app.add_typer(integration_catalog_app, name="catalog")
 
 
 def _read_integration_json(project_root: Path) -> dict[str, Any]:
-    """Load ``.specify/integration.json``. Returns normalized state when present."""
+    """Load ``.specify/integration.json``. Returns normalized state when present.
+
+    Delegates the parse / schema-guard logic to the shared
+    :func:`_try_read_integration_json` helper so the CLI and workflow engine
+    cannot drift on validation rules. Each error variant is translated into
+    the existing loud-fail UX (console message + ``typer.Exit(1)``).
+    """
     path = project_root / INTEGRATION_JSON
-    if not path.exists():
-        return {}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        console.print(f"[red]Error:[/red] {path} contains invalid JSON.")
+    state, error = _try_read_integration_json(project_root)
+    if error is None:
+        return state or {}
+    if error.kind == "decode":
+        console.print(f"[red]Error:[/red] {path} contains invalid JSON or is not valid UTF-8.")
         console.print(f"Please fix or delete {INTEGRATION_JSON} and retry.")
-        console.print(f"[dim]Details:[/dim] {exc}")
-        raise typer.Exit(1)
-    except OSError as exc:
+        console.print(f"[dim]Details:[/dim] {error.detail}")
+    elif error.kind == "os":
         console.print(f"[red]Error:[/red] Could not read {path}.")
         console.print(f"Please fix file permissions or delete {INTEGRATION_JSON} and retry.")
-        console.print(f"[dim]Details:[/dim] {exc}")
-        raise typer.Exit(1)
-    if not isinstance(data, dict):
-        console.print(f"[red]Error:[/red] {path} must contain a JSON object, got {type(data).__name__}.")
-        console.print(f"Please fix or delete {INTEGRATION_JSON} and retry.")
-        raise typer.Exit(1)
-    schema = data.get("integration_state_schema")
-    if isinstance(schema, int) and not isinstance(schema, bool) and schema > INTEGRATION_STATE_SCHEMA:
+        console.print(f"[dim]Details:[/dim] {error.detail}")
+    elif error.kind == "not_object":
         console.print(
-            f"[red]Error:[/red] {path} uses integration state schema {schema}, "
+            f"[red]Error:[/red] {path} must contain a JSON object, got {error.detail}."
+        )
+        console.print(f"Please fix or delete {INTEGRATION_JSON} and retry.")
+    elif error.kind == "schema_too_new":
+        console.print(
+            f"[red]Error:[/red] {path} uses integration state schema {error.schema}, "
             f"but this CLI only supports schema {INTEGRATION_STATE_SCHEMA}."
         )
         console.print("Please upgrade Spec Kit before modifying integrations.")
-        raise typer.Exit(1)
-    return _normalize_integration_state(data)
+    raise typer.Exit(1)
 
 
 def _write_integration_json(
@@ -1977,14 +750,41 @@ def _write_integration_json(
     )
 
 
-def _clear_init_options_for_integration(project_root: Path, integration_key: str) -> None:
-    """Clear active integration keys from init-options.json when they match."""
+def _refresh_init_options_speckit_version(project_root: Path) -> None:
+    """Refresh only the Spec Kit version recorded in init-options.json."""
     opts = load_init_options(project_root)
+    if not isinstance(opts, dict) or not opts:
+        return
+    opts["speckit_version"] = get_speckit_version()
+    save_init_options(project_root, opts)
+
+
+def _clear_init_options_for_integration(project_root: Path, integration_key: str) -> None:
+    """Clear active integration keys from init-options.json when they match.
+
+    Also clears ``context_file`` from the agent-context extension config so
+    no stale path is left behind when the integration is uninstalled.
+    """
+    opts = load_init_options(project_root)
+    has_legacy_context_keys = ("context_file" in opts) or ("context_markers" in opts)
+    # Remove legacy fields that older versions may have written.
+    opts.pop("context_file", None)
+    opts.pop("context_markers", None)
+
     if opts.get("integration") == integration_key or opts.get("ai") == integration_key:
         opts.pop("integration", None)
         opts.pop("ai", None)
         opts.pop("ai_skills", None)
-        opts.pop("context_file", None)
+        save_init_options(project_root, opts)
+        # Clear context_file in the extension config if it already exists.
+        # Avoid creating the config (and parent dirs) in projects where the
+        # agent-context extension was never installed.
+        ext_cfg_path = project_root / _AGENT_CTX_EXT_CONFIG
+        if ext_cfg_path.exists():
+            _update_agent_context_config_file(
+                project_root, "", preserve_markers=True
+            )
+    elif has_legacy_context_keys:
         save_init_options(project_root, opts)
 
 
@@ -2070,6 +870,7 @@ def _set_default_integration(
     parsed_options: dict[str, Any] | None = None,
     refresh_templates: bool = True,
     refresh_templates_force: bool = False,
+    refresh_hint: str | None = None,
 ) -> None:
     """Persist *key* as default and align active runtime metadata."""
     resolved_script = _resolve_integration_script_type(project_root, state, key, script_type)
@@ -2084,16 +885,19 @@ def _set_default_integration(
 
     if refresh_templates:
         try:
-            _refresh_shared_templates(
+            _install_shared_infra(
                 project_root,
+                resolved_script,
                 invoke_separator=_invoke_separator_for_integration(
                     integration, {"integration_settings": settings}, key, parsed_options
                 ),
                 force=refresh_templates_force,
+                refresh_managed=True,
+                refresh_hint=refresh_hint,
             )
         except (ValueError, OSError) as exc:
             raise _SharedTemplateRefreshError(
-                f"Failed to refresh shared templates for '{key}': {exc}"
+                f"Failed to refresh shared infrastructure for '{key}': {exc}"
             ) from exc
 
     _write_integration_json(project_root, key, installed_keys, settings)
@@ -2106,19 +910,6 @@ def _set_default_integration_or_exit(*args: Any, **kwargs: Any) -> None:
     except _SharedTemplateRefreshError as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1)
-
-
-def _display_project_path(project_root: Path, path: str | Path) -> str:
-    """Return a stable POSIX-style display path for paths under a project."""
-    path_obj = Path(path)
-    try:
-        rel_path = path_obj.relative_to(project_root) if path_obj.is_absolute() else path_obj
-    except ValueError:
-        try:
-            rel_path = path_obj.resolve().relative_to(project_root.resolve())
-        except (OSError, ValueError):
-            return path_obj.as_posix()
-    return rel_path.as_posix()
 
 
 def _require_specify_project() -> Path:
@@ -2253,10 +1044,18 @@ def integration_install(
 
     if key in installed_keys:
         console.print(f"[yellow]Integration '{key}' is already installed.[/yellow]")
+        if default_key == key:
+            console.print("It is already the default integration.")
+        else:
+            console.print(
+                f"To make it the default integration, run "
+                f"[cyan]specify integration use {key}[/cyan]."
+            )
         console.print(
-            f"Run [cyan]specify integration upgrade {key}[/cyan] to reinstall managed files, "
-            f"or [cyan]specify integration uninstall {key}[/cyan] first."
+            f"To refresh its managed files or options, run "
+            f"[cyan]specify integration upgrade {key}[/cyan]."
         )
+        console.print("No files were changed.")
         raise typer.Exit(0)
 
     if installed_keys and not force:
@@ -2276,8 +1075,12 @@ def integration_install(
                 "integrations are declared multi-install safe."
             )
             console.print(
-                f"Run [cyan]specify integration switch {key}[/cyan] to replace the default "
-                f"integration, or retry with [cyan]--force[/cyan] to opt in."
+                f"To replace the default integration, run "
+                f"[cyan]specify integration switch {key}[/cyan]."
+            )
+            console.print(
+                f"To install '{key}' alongside the existing integrations anyway, "
+                "retry the same install command with [cyan]--force[/cyan]."
             )
             raise typer.Exit(1)
 
@@ -2338,21 +1141,32 @@ def integration_install(
         _write_integration_json(project_root, new_default, new_installed, settings)
         if new_default == integration.key:
             _update_init_options_for_integration(project_root, integration, script_type=selected_script)
+        else:
+            _refresh_init_options_speckit_version(project_root)
 
-    except Exception as e:
+    except Exception as exc:
         # Attempt rollback of any files written by setup
         try:
             integration.teardown(project_root, manifest, force=True)
         except Exception as rollback_err:
             # Suppress so the original setup error remains the primary failure
-            console.print(f"[yellow]Warning:[/yellow] Failed to roll back integration changes: {rollback_err}")
+            _print_cli_warning(
+                "rollback",
+                "integration",
+                key,
+                rollback_err,
+                continuing="The original install failure is still the primary error.",
+            )
         if installed_keys:
             _write_integration_json(
                 project_root, default_key, installed_keys, _integration_settings(current)
             )
         else:
             _remove_integration_json(project_root)
-        console.print(f"[red]Error:[/red] Failed to install integration: {e}")
+        console.print(
+            f"[red]Error:[/red] Failed to {_cli_phase_label('install', 'integration', key)}: "
+            f"{_cli_error_detail(exc)}"
+        )
         raise typer.Exit(1)
 
     name = (integration.config or {}).get("name", key)
@@ -2415,25 +1229,56 @@ def _update_init_options_for_integration(
     integration: Any,
     script_type: str | None = None,
 ) -> None:
-    """Update ``init-options.json`` to reflect *integration* as the active one."""
+    """Update init-options.json and the agent-context extension config to
+    reflect *integration* as the active one.
+
+    ``context_file`` and ``context_markers`` are stored in the agent-context
+    extension config (``.specify/extensions/agent-context/agent-context-config.yml``),
+    not in ``init-options.json``.  Existing user-customised markers are
+    always preserved when the config already exists; invalid marker values
+    are silently ignored at runtime by ``_resolve_context_markers()`` which
+    falls back to the class-level defaults.
+    """
     from .integrations.base import SkillsIntegration
     opts = load_init_options(project_root)
     opts["integration"] = integration.key
     opts["ai"] = integration.key
-    opts["context_file"] = integration.context_file
+    # Remove legacy fields if they were written by an older version.
+    opts.pop("context_file", None)
+    opts.pop("context_markers", None)
+    opts["speckit_version"] = get_speckit_version()
     if script_type:
         opts["script"] = script_type
     if isinstance(integration, SkillsIntegration) or getattr(integration, "_skills_mode", False):
         opts["ai_skills"] = True
     else:
         opts.pop("ai_skills", None)
+
+    # Update the agent-context extension config BEFORE init-options.json
+    # so a failure here doesn't leave init-options partially updated.
+    ext_cfg_path = project_root / _AGENT_CTX_EXT_CONFIG
+    if ext_cfg_path.exists():
+        _update_agent_context_config_file(
+            project_root,
+            integration.context_file,
+            preserve_markers=True,
+        )
+    elif integration.context_file:
+        # Extension config doesn't exist yet (extension not installed).
+        # Write defaults so scripts have something to read.
+        _update_agent_context_config_file(
+            project_root,
+            integration.context_file,
+            preserve_markers=False,
+        )
+
     save_init_options(project_root, opts)
 
 
 @integration_app.command("use")
 def integration_use(
     key: str = typer.Argument(help="Installed integration key to make the default"),
-    force: bool = typer.Option(False, "--force", help="Overwrite managed shared templates while changing the default"),
+    force: bool = typer.Option(False, "--force", help="Overwrite existing shared infrastructure files, including customizations, while changing the default"),
 ):
     """Set the default integration without uninstalling other integrations."""
     from .integrations import get_integration
@@ -2464,6 +1309,10 @@ def integration_use(
         raw_options=raw_options,
         parsed_options=parsed_options,
         refresh_templates_force=force,
+        refresh_hint=(
+            "To overwrite customizations, re-run with "
+            f"[cyan]specify integration use {key} --force[/cyan]."
+        ),
     )
     console.print(f"[green]✓[/green] Default integration set to [bold]{key}[/bold].")
 
@@ -2536,11 +1385,14 @@ def integration_uninstall(
         console.print(f"[dim]Details:[/dim] {exc}")
         raise typer.Exit(1)
 
-    removed, skipped = manifest.uninstall(project_root, force=force)
-
-    # Remove managed context section from the agent context file
-    if integration:
-        integration.remove_context_section(project_root)
+    if not integration:
+        console.print(
+            f"[yellow]Warning:[/yellow] Integration '{key}' not found "
+            "in registry. Falling back to manifest-based cleanup."
+        )
+        removed, skipped = manifest.uninstall(project_root, force=force)
+    else:
+        removed, skipped = integration.teardown(project_root, manifest, force=force)
 
     remaining = [installed for installed in installed_keys if installed != key]
     new_default = default_key if default_key != key else (remaining[0] if remaining else None)
@@ -2583,7 +1435,8 @@ def integration_uninstall(
 def integration_switch(
     target: str = typer.Argument(help="Integration key to switch to"),
     script: str | None = typer.Option(None, "--script", help="Script type: sh or ps (default: from init-options.json or platform default)"),
-    force: bool = typer.Option(False, "--force", help="Force removal of modified files during uninstall"),
+    force: bool = typer.Option(False, "--force", help="Force removal of modified files during uninstall of the previous integration"),
+    refresh_shared_infra: bool = typer.Option(False, "--refresh-shared-infra", help="Also overwrite shared infrastructure files even if you customized them (otherwise customizations are preserved)"),
     integration_options: str | None = typer.Option(None, "--integration-options", help='Options for the target integration'),
 ):
     """Switch from the current integration to a different one."""
@@ -2629,7 +1482,7 @@ def integration_switch(
             )
             console.print(
                 f"\n[green]✓[/green] Default integration remains [bold]{target}[/bold]; "
-                "managed shared templates refreshed."
+                "shared infrastructure refreshed."
             )
             raise typer.Exit(0)
         console.print(f"[yellow]Integration '{target}' is already the default integration. Nothing to switch.[/yellow]")
@@ -2681,8 +1534,9 @@ def integration_switch(
                     f"run [cyan]specify integration uninstall {installed_key}[/cyan], then retry."
                 )
                 raise typer.Exit(1)
-            removed, skipped = old_manifest.uninstall(project_root, force=force)
-            current_integration.remove_context_section(project_root)
+            removed, skipped = current_integration.teardown(
+                project_root, old_manifest, force=force,
+            )
             if removed:
                 console.print(f"  Removed {len(removed)} file(s)")
             if skipped:
@@ -2715,9 +1569,12 @@ def integration_switch(
             ext_mgr = ExtensionManager(project_root)
             ext_mgr.unregister_agent_artifacts(installed_key)
         except Exception as ext_err:
-            console.print(
-                f"[yellow]Warning:[/yellow] Could not clean up extension artifacts "
-                f"(commands, skills, registry entries) for '{installed_key}': {ext_err}"
+            _print_cli_warning(
+                "clean up extension artifacts for",
+                "integration",
+                installed_key,
+                ext_err,
+                continuing="Continuing with integration switch; old extension artifacts may need manual cleanup.",
             )
 
         # Clear metadata so a failed Phase 2 doesn't leave stale references
@@ -2754,13 +1611,26 @@ def integration_switch(
         target_integration, current, target, integration_options
     )
 
-    # Ensure shared infrastructure is present (safe to run unconditionally;
-    # _install_shared_infra merges missing files without overwriting).
+    # Refresh shared infrastructure to the current CLI version. Switching
+    # integrations is exactly when stale vendored shared scripts (e.g.
+    # update-agent-context.sh that pre-dates the target integration's
+    # supported-agent list) would silently break the new integration.
+    #
+    # Use refresh_managed=True so only files that match their previously
+    # recorded hash are overwritten — user customizations are detected via
+    # hash divergence and preserved with a warning. Pass
+    # --refresh-shared-infra to overwrite customizations as well. See #2293.
     _install_shared_infra_or_exit(
         project_root,
         selected_script,
+        force=refresh_shared_infra,
+        refresh_managed=True,
         invoke_separator=_invoke_separator_for_integration(
             target_integration, current, target, parsed_options
+        ),
+        refresh_hint=(
+            "To overwrite customizations, re-run with "
+            "[cyan]specify integration switch ... --refresh-shared-infra[/cyan]."
         ),
     )
     if os.name != "nt":
@@ -2799,18 +1669,27 @@ def integration_switch(
             ext_mgr = ExtensionManager(project_root)
             ext_mgr.register_enabled_extensions_for_agent(target)
         except Exception as ext_err:
-            console.print(
-                f"[yellow]Warning:[/yellow] Could not register extension commands, skills, "
-                f"or related artifacts for '{target}': {ext_err}"
+            _print_cli_warning(
+                "register extension artifacts for",
+                "integration",
+                target,
+                ext_err,
+                continuing="The integration switch succeeded, but installed extensions may need re-registration.",
             )
 
-    except Exception as e:
+    except Exception as exc:
         # Attempt rollback of any files written by setup
         try:
             target_integration.teardown(project_root, manifest, force=True)
         except Exception as rollback_err:
             # Suppress so the original setup error remains the primary failure
-            console.print(f"[yellow]Warning:[/yellow] Failed to roll back integration '{target}': {rollback_err}")
+            _print_cli_warning(
+                "rollback",
+                "integration",
+                target,
+                rollback_err,
+                continuing="The original switch failure is still the primary error.",
+            )
         if installed_keys:
             fallback_key = installed_keys[0]
             fallback_integration = get_integration(fallback_key)
@@ -2839,7 +1718,10 @@ def integration_switch(
                 )
         else:
             _remove_integration_json(project_root)
-        console.print(f"[red]Error:[/red] Failed to install integration '{target}': {e}")
+        console.print(
+            f"[red]Error:[/red] Failed to {_cli_phase_label('install', 'integration', target)} "
+            f"during switch: {_cli_error_detail(exc)}"
+        )
         raise typer.Exit(1)
 
     name = (target_integration.config or {}).get("name", target)
@@ -2956,25 +1838,30 @@ def integration_upgrade(
         )
         if installed_key == key:
             try:
-                _refresh_shared_templates(
+                _install_shared_infra(
                     project_root,
+                    selected_script,
                     invoke_separator=_invoke_separator_for_integration(
                         integration, {"integration_settings": settings}, key, parsed_options
                     ),
                     force=force,
+                    refresh_managed=True,
                 )
             except (ValueError, OSError) as exc:
                 raise _SharedTemplateRefreshError(
-                    f"Failed to refresh shared templates for '{key}': {exc}"
+                    f"Failed to refresh shared infrastructure for '{key}': {exc}"
                 ) from exc
         new_manifest.save()
         _write_integration_json(project_root, installed_key, installed_keys, settings)
         if installed_key == key:
             _update_init_options_for_integration(project_root, integration, script_type=selected_script)
+        else:
+            _refresh_init_options_speckit_version(project_root)
     except Exception as exc:
         # Don't teardown — setup overwrites in-place, so teardown would
         # delete files that were working before the upgrade.  Just report.
-        console.print(f"[red]Error:[/red] Failed to upgrade integration: {exc}")
+        console.print(f"[red]Error:[/red] Failed to {_cli_phase_label('upgrade', 'integration', key)}.")
+        console.print(f"[dim]Details:[/dim] {_cli_error_detail(exc)}")
         console.print("[yellow]The previous integration files may still be in place.[/yellow]")
         raise typer.Exit(1)
 
@@ -4240,6 +3127,43 @@ def extension_add(
     manager = ExtensionManager(project_root)
     speckit_version = get_speckit_version()
 
+    # Prompt for URL-based installs BEFORE the spinner so the user can
+    # actually see and respond to the confirmation (the Rich status
+    # spinner overwrites the typer.confirm prompt line, making it appear
+    # as though the command is hung).
+    # Guard with ``not dev`` so that --dev + --from does not show a
+    # confusing confirmation for a URL that will be ignored.
+    if from_url and not dev:
+        from urllib.parse import urlparse
+        from rich.markup import escape as _escape_markup
+
+        parsed = urlparse(from_url)
+        is_localhost = parsed.hostname in ("localhost", "127.0.0.1", "::1")
+
+        if parsed.scheme != "https" and not (parsed.scheme == "http" and is_localhost):
+            console.print("[red]Error:[/red] URL must use HTTPS for security.")
+            console.print("HTTP is only allowed for localhost URLs.")
+            raise typer.Exit(1)
+
+        safe_url = _escape_markup(from_url)
+
+        # Warn about untrusted sources — default-deny confirmation
+        console.print()
+        console.print(Panel(
+            f"[bold]You are installing an extension from an external URL that is not\n"
+            f"listed in any of your configured extension catalogs.[/bold]\n\n"
+            f"URL: {safe_url}\n\n"
+            f"Only install extensions from sources you trust.",
+            title="[bold yellow]⚠ Untrusted Source[/bold yellow]",
+            border_style="yellow",
+            padding=(1, 2),
+        ))
+        console.print()
+        confirm = typer.confirm("Continue with installation?", default=False)
+        if not confirm:
+            console.print("Cancelled")
+            raise typer.Exit(0)
+
     try:
         with console.status(f"[cyan]Installing extension: {extension}[/cyan]"):
             if dev:
@@ -4253,27 +3177,18 @@ def extension_add(
                     console.print(f"[red]Error:[/red] No extension.yml found in {source_path}")
                     raise typer.Exit(1)
 
-                manifest = manager.install_from_directory(source_path, speckit_version, priority=priority)
+                manifest = manager.install_from_directory(
+                    source_path,
+                    speckit_version,
+                    priority=priority,
+                    link_commands=True,
+                )
 
             elif from_url:
                 # Install from URL (ZIP file)
-                import urllib.request
                 import urllib.error
-                from urllib.parse import urlparse
 
-                # Validate URL
-                parsed = urlparse(from_url)
-                is_localhost = parsed.hostname in ("localhost", "127.0.0.1", "::1")
-
-                if parsed.scheme != "https" and not (parsed.scheme == "http" and is_localhost):
-                    console.print("[red]Error:[/red] URL must use HTTPS for security.")
-                    console.print("HTTP is only allowed for localhost URLs.")
-                    raise typer.Exit(1)
-
-                # Warn about untrusted sources
-                console.print("[yellow]Warning:[/yellow] Installing from external URL.")
-                console.print("Only install extensions from sources you trust.\n")
-                console.print(f"Downloading from {from_url}...")
+                console.print(f"Downloading from {safe_url}...")
 
                 # Download ZIP to temp location
                 download_dir = project_root / ".specify" / "extensions" / ".cache" / "downloads"
@@ -4290,7 +3205,7 @@ def extension_add(
                     # Install from downloaded ZIP
                     manifest = manager.install_from_zip(zip_path, speckit_version, priority=priority)
                 except urllib.error.URLError as e:
-                    console.print(f"[red]Error:[/red] Failed to download from {from_url}: {e}")
+                    console.print(f"[red]Error:[/red] Failed to download from {safe_url}: {e}")
                     raise typer.Exit(1)
                 finally:
                     # Clean up downloaded ZIP
@@ -4371,9 +3286,17 @@ def extension_add(
         for warning in manifest.warnings:
             console.print(f"\n[yellow]⚠  Compatibility warning:[/yellow] {warning}")
 
+        is_cline = load_init_options(project_root).get("ai") == "cline"
+
+        if is_cline:
+            from specify_cli.integrations.cline import format_cline_command_name
+
         console.print("\n[bold cyan]Provided commands:[/bold cyan]")
         for cmd in manifest.commands:
-            console.print(f"  • {cmd['name']} - {cmd.get('description', '')}")
+            cmd_name = cmd['name']
+            if is_cline:
+                cmd_name = format_cline_command_name(cmd_name)
+            console.print(f"  • {cmd_name} - {cmd.get('description', '')}")
 
         # Report agent skills registration
         reg_meta = manager.registry.get(manifest.id)
@@ -4838,6 +3761,10 @@ def extension_update(
         failed_updates = []
         registrar = CommandRegistrar()
         hook_executor = HookExecutor(project_root)
+        from .agents import CommandRegistrar as _AgentReg  # used in backup and rollback paths
+
+        # UNSET sentinel: backup not yet captured (exception before backup step)
+        UNSET = object()
 
         for update in updates_available:
             extension_id = update["id"]
@@ -4851,8 +3778,9 @@ def extension_update(
             backup_config_dir = backup_base / "config"
 
             # Store backup state
-            backup_registry_entry = None
-            backup_hooks = None  # None means no hooks key in config; {} means hooks key existed
+            backup_registry_entry = None  # None means registry entry not yet captured
+            backup_installed = UNSET  # Original installed list from extensions.yml
+            backup_hooks = None  # None means backup step 4 not yet reached; {} or {...} means backup was captured
             backed_up_command_files = {}
 
             try:
@@ -4877,13 +3805,14 @@ def extension_update(
                         shutil.copy2(cfg_file, backup_config_dir / cfg_file.name)
 
                 # 3. Backup command files for all agents
-                from .agents import CommandRegistrar as _AgentReg
-                registered_commands = backup_registry_entry.get("registered_commands", {})
+                registered_commands = backup_registry_entry.get("registered_commands", {}) if isinstance(backup_registry_entry, dict) else {}
                 for agent_name, cmd_names in registered_commands.items():
                     if agent_name not in registrar.AGENT_CONFIGS:
                         continue
                     agent_config = registrar.AGENT_CONFIGS[agent_name]
-                    commands_dir = project_root / agent_config["dir"]
+                    commands_dir = _AgentReg._resolve_agent_dir(
+                        agent_name, agent_config, project_root
+                    )
 
                     for cmd_name in cmd_names:
                         output_name = _AgentReg._compute_output_name(agent_name, cmd_name, agent_config)
@@ -4903,14 +3832,20 @@ def extension_update(
                                 shutil.copy2(prompt_file, backup_prompt_path)
                                 backed_up_command_files[str(prompt_file)] = str(backup_prompt_path)
 
-                # 4. Backup hooks from extensions.yml
-                # Use backup_hooks=None to indicate config had no "hooks" key (don't create on restore)
-                # Use backup_hooks={} to indicate config had "hooks" key with no hooks for this extension
+                # 4. Backup hooks and installed list from extensions.yml
+                # get_project_config() always normalizes installed->[] and hooks->{},
+                # so no sentinel is needed to distinguish key-absent from key-empty.
                 config = hook_executor.get_project_config()
-                if "hooks" in config:
-                    backup_hooks = {}  # Config has hooks key - preserve this fact
-                    for hook_name, hook_list in config["hooks"].items():
-                        ext_hooks = [h for h in hook_list if h.get("extension") == extension_id]
+                if isinstance(config, dict):
+                    import copy
+                    # Deep-copy so nested mapping entries (e.g. version-pin dicts)
+                    # are not affected by in-place mutations during the update.
+                    backup_installed = copy.deepcopy(config.get("installed", []))
+                    backup_hooks = {}
+                    for hook_name, hook_list in config.get("hooks", {}).items():
+                        if not isinstance(hook_list, list):
+                            continue
+                        ext_hooks = [h for h in hook_list if isinstance(h, dict) and h.get("extension") == extension_id]
                         if ext_hooks:
                             backup_hooks[hook_name] = ext_hooks
 
@@ -5038,7 +3973,9 @@ def extension_update(
                             if agent_name not in registrar.AGENT_CONFIGS:
                                 continue
                             agent_config = registrar.AGENT_CONFIGS[agent_name]
-                            commands_dir = project_root / agent_config["dir"]
+                            commands_dir = _AgentReg._resolve_agent_dir(
+                                agent_name, agent_config, project_root
+                            )
 
                             for cmd_name in cmd_names:
                                 output_name = _AgentReg._compute_output_name(agent_name, cmd_name, agent_config)
@@ -5063,35 +4000,51 @@ def extension_update(
                             original_file.parent.mkdir(parents=True, exist_ok=True)
                             shutil.copy2(backup_file, original_file)
 
-                    # Restore hooks in extensions.yml
-                    # - backup_hooks=None means original config had no "hooks" key
-                    # - backup_hooks={} or {...} means config had hooks key
-                    config = hook_executor.get_project_config()
-                    if "hooks" in config:
+                    # Restore metadata in extensions.yml (hooks and installed list).
+                    # Only run if backup step 4 was reached (backup_hooks is not None);
+                    # otherwise we have no safe baseline to restore from and could corrupt
+                    # the config by removing pre-existing hooks.
+                    if backup_hooks is not None:
+                        config = hook_executor.get_project_config()
+                        if not isinstance(config, dict):
+                            config = {}
+
                         modified = False
 
-                        if backup_hooks is None:
-                            # Original config had no "hooks" key; remove it entirely
-                            del config["hooks"]
+                        # 1. Restore hooks in extensions.yml
+                        if not isinstance(config.get("hooks"), dict):
+                            config["hooks"] = {}
                             modified = True
-                        else:
-                            # Remove any hooks for this extension added by failed install
-                            for hook_name, hooks_list in config["hooks"].items():
-                                original_len = len(hooks_list)
-                                config["hooks"][hook_name] = [
-                                    h for h in hooks_list
-                                    if h.get("extension") != extension_id
-                                ]
-                                if len(config["hooks"][hook_name]) != original_len:
-                                    modified = True
 
-                            # Add back the backed up hooks if any
-                            if backup_hooks:
-                                for hook_name, hooks in backup_hooks.items():
-                                    if hook_name not in config["hooks"]:
-                                        config["hooks"][hook_name] = []
-                                    config["hooks"][hook_name].extend(hooks)
-                                    modified = True
+                        # Remove any hooks for this extension added by the failed install
+                        for hook_name in list(config["hooks"].keys()):
+                            hooks_list = config["hooks"][hook_name]
+                            if not isinstance(hooks_list, list):
+                                config["hooks"][hook_name] = []
+                                modified = True
+                                continue
+
+                            original_len = len(hooks_list)
+                            config["hooks"][hook_name] = [
+                                h for h in hooks_list
+                                if isinstance(h, dict) and h.get("extension") != extension_id
+                            ]
+                            if len(config["hooks"][hook_name]) != original_len:
+                                modified = True
+
+                        # Add back the backed-up hooks
+                        if backup_hooks:
+                            for hook_name, hooks in backup_hooks.items():
+                                if not isinstance(config["hooks"].get(hook_name), list):
+                                    config["hooks"][hook_name] = []
+                                config["hooks"][hook_name].extend(hooks)
+                                modified = True
+
+                        # 2. Restore installed list in extensions.yml
+                        if backup_installed is not UNSET:
+                            if config.get("installed") != backup_installed:
+                                config["installed"] = backup_installed
+                                modified = True
 
                         if modified:
                             hook_executor.save_project_config(config)

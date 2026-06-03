@@ -25,6 +25,8 @@ import yaml
 from packaging import version as pkg_version
 from packaging.specifiers import SpecifierSet, InvalidSpecifier
 
+from .catalogs import CatalogEntry as BaseCatalogEntry, CatalogStackBase
+
 _FALLBACK_CORE_COMMAND_NAMES = frozenset({
     "analyze",
     "checklist",
@@ -107,13 +109,8 @@ def normalize_priority(value: Any, default: int = 10) -> int:
 
 
 @dataclass
-class CatalogEntry:
+class CatalogEntry(BaseCatalogEntry):
     """Represents a single catalog entry in the catalog stack."""
-    url: str
-    name: str
-    priority: int
-    install_allowed: bool
-    description: str = ""
 
 
 class ExtensionManifest:
@@ -764,7 +761,28 @@ class ExtensionManager:
         if not ignore_file.exists():
             return None
 
-        lines: List[str] = ignore_file.read_text().splitlines()
+        # Pin UTF-8 explicitly: ``Path.read_text`` defaults to the system
+        # locale codec on Windows (cp1252 / gb2312 / cp932), which silently
+        # corrupts multibyte patterns when the file is shared across
+        # machines with different locales. The next line already
+        # normalises backslashes "so Windows-authored files work" — the
+        # codebase already expects Windows authors to write this file.
+        #
+        # A file that is not valid UTF-8 is a user-authoring mistake, so
+        # surface it as ``ValidationError`` with a pointer to the offending
+        # byte — the same pattern ``ExtensionManifest._load_yaml`` uses
+        # for ``extension.yml`` (see ``UnicodeDecodeError`` handler in
+        # this module). Without the wrap, the raw ``UnicodeDecodeError``
+        # would abort installation with a Python traceback instead of a
+        # clear message naming the file.
+        try:
+            raw = ignore_file.read_text(encoding="utf-8")
+        except UnicodeDecodeError as e:
+            raise ValidationError(
+                f".extensionignore is not valid UTF-8: {ignore_file} "
+                f"({e.reason} at byte {e.start})"
+            )
+        lines: List[str] = raw.splitlines()
 
         # Normalise backslashes in patterns so Windows-authored files work
         normalised: List[str] = []
@@ -804,42 +822,29 @@ class ExtensionManager:
     def _get_skills_dir(self) -> Optional[Path]:
         """Return the active skills directory for extension skill registration.
 
-        Reads ``.specify/init-options.json`` to determine whether skills
-        are enabled and which agent was selected, then delegates to
-        the module-level ``_get_skills_dir()`` helper for the concrete path.
+        Delegates to :func:`resolve_active_skills_dir` which reads
+        init-options, applies the Kimi native-skills fallback, and
+        safely creates the directory when ``ai_skills`` is enabled.
 
-        Kimi is treated as a native-skills agent: if ``ai == "kimi"`` and
-        ``.kimi/skills`` exists, extension installs should still propagate
-        command skills even when ``ai_skills`` is false.
-
-        Returns:
-            The skills directory ``Path``, or ``None`` if skills were not
-            enabled and no native-skills fallback applies.
+        Returns ``None`` (instead of raising) when the directory cannot
+        be created due to symlink, containment, or permission issues so
+        that callers can fall back gracefully.
         """
-        from . import load_init_options, _get_skills_dir as resolve_skills_dir
-
-        opts = load_init_options(self.project_root)
-        if not isinstance(opts, dict):
-            opts = {}
-
-        agent = opts.get("ai")
-        if not isinstance(agent, str) or not agent:
+        from . import resolve_active_skills_dir, _print_cli_warning
+        try:
+            return resolve_active_skills_dir(self.project_root)
+        except (ValueError, OSError) as exc:
+            _print_cli_warning(
+                "resolve", "skills directory", None, exc,
+                continuing="Continuing without skill registration.",
+            )
             return None
-
-        ai_skills_enabled = bool(opts.get("ai_skills"))
-        if not ai_skills_enabled and agent != "kimi":
-            return None
-
-        skills_dir = resolve_skills_dir(self.project_root, agent)
-        if not skills_dir.is_dir():
-            return None
-
-        return skills_dir
 
     def _register_extension_skills(
         self,
         manifest: ExtensionManifest,
         extension_dir: Path,
+        link_outputs: bool = False,
     ) -> List[str]:
         """Generate SKILL.md files for extension commands as agent skills.
 
@@ -851,6 +856,8 @@ class ExtensionManager:
         Args:
             manifest: Extension manifest.
             extension_dir: Installed extension directory.
+            link_outputs: If True, create dev-mode symlinks for rendered
+                skill files when supported by the OS.
 
         Returns:
             List of skill names that were created (for registry storage).
@@ -903,9 +910,18 @@ class ExtensionManager:
             # Check if skill already exists before creating the directory
             skill_subdir = skills_dir / skill_name
             skill_file = skill_subdir / "SKILL.md"
-            if skill_file.exists():
-                # Do not overwrite user-customized skills
-                continue
+            cache_root = extension_dir / ".specify-dev" / "extension-skills"
+            cache_file = cache_root / skill_name / "SKILL.md"
+            CommandRegistrar._ensure_inside(cache_file, cache_root)
+            if skill_file.exists() or skill_file.is_symlink():
+                # Do not overwrite user-customized skills, but allow dev-mode
+                # symlinks that point back to this extension's generated cache
+                # to be refreshed on a subsequent dev install.
+                if not (
+                    link_outputs
+                    and self._is_expected_dev_symlink(skill_file, cache_file)
+                ):
+                    continue
 
             # Create skill directory; track whether we created it so we can clean
             # up safely if reading the source file subsequently fails.
@@ -957,10 +973,34 @@ class ExtensionManager:
                     skill_content
                 )
 
-            skill_file.write_text(skill_content, encoding="utf-8")
+            if link_outputs:
+                try:
+                    cache_file.parent.mkdir(parents=True, exist_ok=True)
+                    cache_file.write_text(skill_content, encoding="utf-8")
+                    if skill_file.exists() or skill_file.is_symlink():
+                        skill_file.unlink()
+                    target = os.path.relpath(cache_file, skill_file.parent)
+                    os.symlink(target, skill_file)
+                except (OSError, ValueError):
+                    if skill_file.is_symlink():
+                        skill_file.unlink()
+                    skill_file.write_text(skill_content, encoding="utf-8")
+            else:
+                skill_file.write_text(skill_content, encoding="utf-8")
             written.append(skill_name)
 
         return written
+
+    @staticmethod
+    def _is_expected_dev_symlink(skill_file: Path, cache_file: Path) -> bool:
+        """Return True when an existing skill file links to its dev cache."""
+        if not skill_file.is_symlink():
+            return False
+
+        try:
+            return skill_file.resolve(strict=False) == cache_file.resolve(strict=False)
+        except OSError:
+            return False
 
     def _unregister_extension_skills(
         self,
@@ -1132,6 +1172,7 @@ class ExtensionManager:
         speckit_version: str,
         register_commands: bool = True,
         priority: int = 10,
+        link_commands: bool = False,
     ) -> ExtensionManifest:
         """Install extension from a local directory.
 
@@ -1140,6 +1181,8 @@ class ExtensionManager:
             speckit_version: Current spec-kit version
             register_commands: If True, register commands with AI agents
             priority: Resolution priority (lower = higher precedence, default 10)
+            link_commands: If True, register rendered agent artifacts as
+                symlinks to a dev cache when supported by the OS.
 
         Returns:
             Installed extension manifest
@@ -1183,14 +1226,16 @@ class ExtensionManager:
             registrar = CommandRegistrar()
             # Register for all detected agents
             registered_commands = registrar.register_commands_for_all_agents(
-                manifest, dest_dir, self.project_root
+                manifest, dest_dir, self.project_root, link_outputs=link_commands
             )
 
         # Auto-register extension commands as agent skills when --ai-skills
         # was used during project initialisation (feature parity).
-        registered_skills = self._register_extension_skills(manifest, dest_dir)
+        registered_skills = self._register_extension_skills(
+            manifest, dest_dir, link_outputs=link_commands
+        )
 
-        # Register hooks
+        # Register hooks and update installed list in extensions.yml
         hook_executor = HookExecutor(self.project_root)
         hook_executor.register_hooks(manifest)
 
@@ -1624,7 +1669,8 @@ class CommandRegistrar:
         agent_name: str,
         manifest: ExtensionManifest,
         extension_dir: Path,
-        project_root: Path
+        project_root: Path,
+        link_outputs: bool = False,
     ) -> List[str]:
         """Register extension commands for a specific agent."""
         if agent_name not in self.AGENT_CONFIGS:
@@ -1632,20 +1678,23 @@ class CommandRegistrar:
         context_note = f"\n<!-- Extension: {manifest.id} -->\n<!-- Config: .specify/extensions/{manifest.id}/ -->\n"
         return self._registrar.register_commands(
             agent_name, manifest.commands, manifest.id, extension_dir, project_root,
-            context_note=context_note
+            context_note=context_note,
+            link_outputs=link_outputs,
         )
 
     def register_commands_for_all_agents(
         self,
         manifest: ExtensionManifest,
         extension_dir: Path,
-        project_root: Path
+        project_root: Path,
+        link_outputs: bool = False,
     ) -> Dict[str, List[str]]:
         """Register extension commands for all detected agents."""
         context_note = f"\n<!-- Extension: {manifest.id} -->\n<!-- Config: .specify/extensions/{manifest.id}/ -->\n"
         return self._registrar.register_commands_for_all_agents(
             manifest.commands, manifest.id, extension_dir, project_root,
-            context_note=context_note
+            context_note=context_note,
+            link_outputs=link_outputs,
         )
 
     def unregister_commands(
@@ -1660,18 +1709,25 @@ class CommandRegistrar:
         self,
         manifest: ExtensionManifest,
         extension_dir: Path,
-        project_root: Path
+        project_root: Path,
+        link_outputs: bool = False,
     ) -> List[str]:
         """Register extension commands for Claude Code agent."""
-        return self.register_commands_for_agent("claude", manifest, extension_dir, project_root)
+        return self.register_commands_for_agent(
+            "claude", manifest, extension_dir, project_root, link_outputs=link_outputs
+        )
 
 
-class ExtensionCatalog:
+class ExtensionCatalog(CatalogStackBase):
     """Manages extension catalog fetching, caching, and searching."""
 
     DEFAULT_CATALOG_URL = "https://raw.githubusercontent.com/github/spec-kit/main/extensions/catalog.json"
     COMMUNITY_CATALOG_URL = "https://raw.githubusercontent.com/github/spec-kit/main/extensions/catalog.community.json"
     CACHE_DURATION = 3600  # 1 hour in seconds
+    CONFIG_FILENAME = "extension-catalogs.yml"
+    ENTRY_CLASS = CatalogEntry
+    ERROR_TYPE = ValidationError
+    VALIDATION_ERROR_TYPE = ValidationError
 
     def __init__(self, project_root: Path):
         """Initialize extension catalog manager.
@@ -1684,27 +1740,6 @@ class ExtensionCatalog:
         self.cache_dir = self.extensions_dir / ".cache"
         self.cache_file = self.cache_dir / "catalog.json"
         self.cache_metadata_file = self.cache_dir / "catalog-metadata.json"
-
-    def _validate_catalog_url(self, url: str) -> None:
-        """Validate that a catalog URL uses HTTPS (localhost HTTP allowed).
-
-        Args:
-            url: URL to validate
-
-        Raises:
-            ValidationError: If URL is invalid or uses non-HTTPS scheme
-        """
-        from urllib.parse import urlparse
-
-        parsed = urlparse(url)
-        is_localhost = parsed.hostname in ("localhost", "127.0.0.1", "::1")
-        if parsed.scheme != "https" and not (parsed.scheme == "http" and is_localhost):
-            raise ValidationError(
-                f"Catalog URL must use HTTPS (got {parsed.scheme}://). "
-                "HTTP is only allowed for localhost."
-            )
-        if not parsed.netloc:
-            raise ValidationError("Catalog URL must be a valid URL with a host.")
 
     def _make_request(self, url: str):
         """Build a urllib Request, adding auth headers when a provider matches.
@@ -1721,81 +1756,6 @@ class ExtensionCatalog:
         """
         from specify_cli.authentication.http import open_url
         return open_url(url, timeout)
-
-    def _load_catalog_config(self, config_path: Path) -> Optional[List[CatalogEntry]]:
-        """Load catalog stack configuration from a YAML file.
-
-        Args:
-            config_path: Path to extension-catalogs.yml
-
-        Returns:
-            Ordered list of CatalogEntry objects, or None if file doesn't exist.
-
-        Raises:
-            ValidationError: If any catalog entry has an invalid URL,
-                the file cannot be parsed, a priority value is invalid,
-                or the file exists but contains no valid catalog entries
-                (fail-closed for security).
-        """
-        if not config_path.exists():
-            return None
-        try:
-            data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
-        except (yaml.YAMLError, OSError, UnicodeError) as e:
-            raise ValidationError(
-                f"Failed to read catalog config {config_path}: {e}"
-            )
-        catalogs_data = data.get("catalogs", [])
-        if not catalogs_data:
-            # File exists but has no catalogs key or empty list - fail closed
-            raise ValidationError(
-                f"Catalog config {config_path} exists but contains no 'catalogs' entries. "
-                f"Remove the file to use built-in defaults, or add valid catalog entries."
-            )
-        if not isinstance(catalogs_data, list):
-            raise ValidationError(
-                f"Invalid catalog config: 'catalogs' must be a list, got {type(catalogs_data).__name__}"
-            )
-        entries: List[CatalogEntry] = []
-        skipped_entries: List[int] = []
-        for idx, item in enumerate(catalogs_data):
-            if not isinstance(item, dict):
-                raise ValidationError(
-                    f"Invalid catalog entry at index {idx}: expected a mapping, got {type(item).__name__}"
-                )
-            url = str(item.get("url", "")).strip()
-            if not url:
-                skipped_entries.append(idx)
-                continue
-            self._validate_catalog_url(url)
-            try:
-                priority = int(item.get("priority", idx + 1))
-            except (TypeError, ValueError):
-                raise ValidationError(
-                    f"Invalid priority for catalog '{item.get('name', idx + 1)}': "
-                    f"expected integer, got {item.get('priority')!r}"
-                )
-            raw_install = item.get("install_allowed", False)
-            if isinstance(raw_install, str):
-                install_allowed = raw_install.strip().lower() in ("true", "yes", "1")
-            else:
-                install_allowed = bool(raw_install)
-            entries.append(CatalogEntry(
-                url=url,
-                name=str(item.get("name", f"catalog-{idx + 1}")),
-                priority=priority,
-                install_allowed=install_allowed,
-                description=str(item.get("description", "")),
-            ))
-        entries.sort(key=lambda e: e.priority)
-        if not entries:
-            # All entries were invalid (missing URLs) - fail closed for security
-            raise ValidationError(
-                f"Catalog config {config_path} contains {len(catalogs_data)} entries but none have valid URLs "
-                f"(entries at indices {skipped_entries} were skipped). "
-                f"Each catalog entry must have a 'url' field."
-            )
-        return entries
 
     def get_active_catalogs(self) -> List[CatalogEntry]:
         """Get the ordered list of active catalogs.
@@ -1826,24 +1786,44 @@ class ExtensionCatalog:
                         file=sys.stderr,
                     )
                     self._non_default_catalog_warning_shown = True
-            return [CatalogEntry(url=catalog_url, name="custom", priority=1, install_allowed=True, description="Custom catalog via SPECKIT_CATALOG_URL")]
+            return [
+                self._entry(
+                    url=catalog_url,
+                    name="custom",
+                    priority=1,
+                    install_allowed=True,
+                    description="Custom catalog via SPECKIT_CATALOG_URL",
+                )
+            ]
 
         # 2. Project-level config overrides all defaults
-        project_config_path = self.project_root / ".specify" / "extension-catalogs.yml"
+        project_config_path = self.project_root / ".specify" / self.CONFIG_FILENAME
         catalogs = self._load_catalog_config(project_config_path)
         if catalogs is not None:
             return catalogs
 
         # 3. User-level config
-        user_config_path = Path.home() / ".specify" / "extension-catalogs.yml"
+        user_config_path = Path.home() / ".specify" / self.CONFIG_FILENAME
         catalogs = self._load_catalog_config(user_config_path)
         if catalogs is not None:
             return catalogs
 
         # 4. Built-in default stack
         return [
-            CatalogEntry(url=self.DEFAULT_CATALOG_URL, name="default", priority=1, install_allowed=True, description="Built-in catalog of installable extensions"),
-            CatalogEntry(url=self.COMMUNITY_CATALOG_URL, name="community", priority=2, install_allowed=False, description="Community-contributed extensions (discovery only)"),
+            self._entry(
+                url=self.DEFAULT_CATALOG_URL,
+                name="default",
+                priority=1,
+                install_allowed=True,
+                description="Built-in catalog of installable extensions",
+            ),
+            self._entry(
+                url=self.COMMUNITY_CATALOG_URL,
+                name="community",
+                priority=2,
+                install_allowed=False,
+                description="Community-contributed extensions (discovery only)",
+            ),
         ]
 
     def get_catalog_url(self) -> str:
@@ -2454,6 +2434,7 @@ class HookExecutor:
         claude_skill_mode = selected_ai == "claude" and bool(init_options.get("ai_skills"))
         kimi_skill_mode = selected_ai == "kimi"
         cursor_skill_mode = selected_ai == "cursor-agent" and bool(init_options.get("ai_skills"))
+        cline_mode = selected_ai == "cline"
 
         skill_name = self._skill_name_from_command(command_id)
         if codex_skill_mode and skill_name:
@@ -2464,6 +2445,10 @@ class HookExecutor:
             return f"/skill:{skill_name}"
         if cursor_skill_mode and skill_name:
             return f"/{skill_name}"
+        if cline_mode:
+            from .integrations.cline import format_cline_command_name
+
+            return f"/{format_cline_command_name(command_id)}"
 
         return f"/{command_id}"
 
@@ -2481,7 +2466,32 @@ class HookExecutor:
             }
 
         try:
-            return yaml.safe_load(self.config_file.read_text(encoding="utf-8")) or {}
+            result = yaml.safe_load(self.config_file.read_text(encoding="utf-8"))
+            # Coerce non-dict root (including None for an empty file) to the
+            # fully-normalized default so callers always get guaranteed fields.
+            if not isinstance(result, dict):
+                return {
+                    "installed": [],
+                    "settings": {"auto_execute_hooks": True},
+                    "hooks": {},
+                }
+            # Normalize nested fields so read-only callers like get_hooks_for_event()
+            # never see non-dict hooks or non-list installed (Feedback)
+            if not isinstance(result.get("hooks"), dict):
+                result["hooks"] = {}
+            if not isinstance(result.get("installed"), list):
+                result["installed"] = []
+            if not isinstance(result.get("settings"), dict):
+                result["settings"] = {"auto_execute_hooks": True}
+            # Sanitize hook event values: coerce non-list values to [] and filter
+            # non-dict items so get_hooks_for_event() can safely call .get() (Feedback)
+            for event_key in list(result["hooks"]):
+                event_val = result["hooks"][event_key]
+                if not isinstance(event_val, list):
+                    result["hooks"][event_key] = []
+                else:
+                    result["hooks"][event_key] = [h for h in event_val if isinstance(h, dict)]
+            return result
         except (yaml.YAMLError, OSError, UnicodeError):
             return {
                 "installed": [],
@@ -2501,25 +2511,141 @@ class HookExecutor:
             encoding="utf-8",
         )
 
+    def register_extension(self, extension_id: str):
+        """Add extension to the installed list in project config.
+
+        Args:
+            extension_id: ID of extension to register
+        """
+        config = self.get_project_config()
+
+        # Ensure config is a dict (defensive)
+        if not isinstance(config, dict):
+            config = {}
+
+        raw_installed = config.get("installed")
+        sanitized = self._sanitize_installed_list(raw_installed, add_id=extension_id)
+
+        if sanitized != raw_installed:
+            config["installed"] = sanitized
+            self.save_project_config(config)
+
+    def unregister_extension(self, extension_id: str):
+        """Remove extension from the installed list in project config.
+
+        Args:
+            extension_id: ID of extension to unregister
+        """
+        config = self.get_project_config()
+
+        if not isinstance(config, dict):
+            config = {}
+
+        raw_installed = config.get("installed")
+        sanitized = self._sanitize_installed_list(raw_installed, remove_id=extension_id)
+
+        # Always persist if sanitized state differs from raw config (ensures normalization)
+        if sanitized != raw_installed:
+            config["installed"] = sanitized
+            self.save_project_config(config)
+
+    @staticmethod
+    def _sanitize_installed_list(
+        raw: object,
+        *,
+        add_id: str = "",
+        remove_id: str = "",
+    ) -> list:
+        """Normalize, deduplicate, and optionally add/remove an extension id.
+
+        Shared by register_extension() and unregister_extension() to prevent
+        the two paths from drifting.
+
+        Args:
+            raw: The raw value from config["installed"] (may be non-list).
+            add_id: If non-empty, ensure this id is present (plain-string fallback).
+            remove_id: If non-empty, remove this id from the list.
+
+        Returns:
+            A sanitized, deduplicated, alphabetically-sorted list.
+        """
+        _VALID_ID = re.compile(r'^[a-z0-9-]+$')
+
+        installed = raw if isinstance(raw, list) else []
+
+        # Keep only entries whose resolved id is a non-empty string matching
+        # the extension-id format (^[a-z0-9-]+$), same rule ExtensionManifest enforces.
+        def _valid_entry(x: object) -> bool:
+            if isinstance(x, str):
+                return bool(_VALID_ID.match(x.strip()))
+            if isinstance(x, dict):
+                eid = x.get("id")
+                return isinstance(eid, str) and bool(_VALID_ID.match(eid.strip()))
+            return False
+
+        valid = [x for x in installed if _valid_entry(x)]
+
+        # Deduplicate by id: prefer dict (richer metadata) over plain string
+        seen: dict = {}  # id -> entry (dict preferred over str)
+        for x in valid:
+            eid = x.strip() if isinstance(x, str) else x.get("id", "").strip()
+            if eid not in seen or isinstance(x, dict):
+                seen[eid] = x
+
+        # Validate add_id against the same regex before inserting
+        if add_id and _VALID_ID.match(add_id.strip()) and add_id not in seen:
+            seen[add_id] = add_id
+
+        if remove_id:
+            seen.pop(remove_id, None)
+
+        def _sort_key(x: object) -> str:
+            return x if isinstance(x, str) else x.get("id", "")  # type: ignore[return-value]
+
+        return sorted(seen.values(), key=_sort_key)
+
     def register_hooks(self, manifest: ExtensionManifest):
         """Register extension hooks in project config.
 
         Args:
             manifest: Extension manifest with hooks to register
         """
+        # Always ensure the extension is in the installed list
+        self.register_extension(manifest.id)
+
         if not hasattr(manifest, "hooks") or not manifest.hooks:
             return
 
         config = self.get_project_config()
 
-        # Ensure hooks dict exists
-        if "hooks" not in config:
+        # Ensure config is a dict (defensive)
+        changed = False
+        if not isinstance(config, dict):
+            config = {}
+            changed = True
+
+        # Ensure hooks dict exists and is a mapping
+        if "hooks" not in config or not isinstance(config["hooks"], dict):
             config["hooks"] = {}
+            changed = True
+        else:
+            # Sanitize existing hook lists to prevent crashes in downstream code (Feedback)
+            for h_name in list(config["hooks"].keys()):
+                h_list = config["hooks"][h_name]
+                if not isinstance(h_list, list):
+                    config["hooks"][h_name] = []
+                    changed = True
+                else:
+                    sanitized_h_list = [h for h in h_list if isinstance(h, dict)]
+                    if len(sanitized_h_list) != len(h_list):
+                        config["hooks"][h_name] = sanitized_h_list
+                        changed = True
 
         # Register each hook
         for hook_name, hook_config in manifest.hooks.items():
-            if hook_name not in config["hooks"]:
+            if hook_name not in config["hooks"] or not isinstance(config["hooks"][hook_name], list):
                 config["hooks"][hook_name] = []
+                changed = True
 
             # Add hook entry
             hook_entry = {
@@ -2534,22 +2660,22 @@ class HookExecutor:
                 "condition": hook_config.get("condition"),
             }
 
-            # Check if already registered
-            existing = [
-                h
-                for h in config["hooks"][hook_name]
-                if h.get("extension") == manifest.id
+            # Deduplicate: remove all existing entries for this extension on this
+            # hook event, then append the single canonical entry. This prevents
+            # multiple hooks firing when hand-edited or older versions leave
+            # duplicate entries behind. (Feedback from review)
+            original_list = config["hooks"][hook_name]
+            deduped = [
+                h for h in original_list
+                if not (isinstance(h, dict) and h.get("extension") == manifest.id)
             ]
+            deduped.append(hook_entry)
+            if deduped != original_list:
+                config["hooks"][hook_name] = deduped
+                changed = True
 
-            if not existing:
-                config["hooks"][hook_name].append(hook_entry)
-            else:
-                # Update existing
-                for i, h in enumerate(config["hooks"][hook_name]):
-                    if h.get("extension") == manifest.id:
-                        config["hooks"][hook_name][i] = hook_entry
-
-        self.save_project_config(config)
+        if changed:
+            self.save_project_config(config)
 
     def unregister_hooks(self, extension_id: str):
         """Remove extension hooks from project config.
@@ -2557,17 +2683,30 @@ class HookExecutor:
         Args:
             extension_id: ID of extension to unregister
         """
+        # Always remove from installed list (Feedback from review)
+        self.unregister_extension(extension_id)
+
         config = self.get_project_config()
 
-        if "hooks" not in config:
+        if not isinstance(config, dict):
+            config = {}
+            # We don't save yet, as there are no hooks to unregister, 
+            # but unregister_extension above might have already saved a normalized config.
+            return
+
+        if "hooks" not in config or not isinstance(config["hooks"], dict):
             return
 
         # Remove hooks for this extension
-        for hook_name in config["hooks"]:
+        for hook_name in list(config["hooks"].keys()):
+            hook_list = config["hooks"][hook_name]
+            if not isinstance(hook_list, list):
+                config["hooks"][hook_name] = []
+                continue
             config["hooks"][hook_name] = [
                 h
-                for h in config["hooks"][hook_name]
-                if h.get("extension") != extension_id
+                for h in hook_list
+                if isinstance(h, dict) and h.get("extension") != extension_id
             ]
 
         # Clean up empty hook arrays

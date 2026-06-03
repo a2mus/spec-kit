@@ -22,6 +22,26 @@ def _normalize_cli_output(output: str) -> str:
     return output.strip()
 
 
+class TestCliDiagnosticFormatting:
+    def test_cli_error_detail_flattens_newlines(self):
+        import specify_cli
+
+        assert specify_cli._cli_error_detail(RuntimeError("line one\nline two")) == "line one line two"
+
+    def test_cli_error_detail_handles_empty_message(self):
+        import specify_cli
+
+        assert specify_cli._cli_error_detail(RuntimeError()) == "RuntimeError"
+
+    def test_cli_phase_label_includes_target(self):
+        import specify_cli
+
+        assert (
+            specify_cli._cli_phase_label("rollback", "integration", "codex")
+            == "rollback integration 'codex'"
+        )
+
+
 class TestInitIntegrationFlag:
     def test_integration_and_ai_mutually_exclusive(self, tmp_path):
         from typer.testing import CliRunner
@@ -67,7 +87,14 @@ class TestInitIntegrationFlag:
 
         opts = json.loads((project / ".specify" / "init-options.json").read_text(encoding="utf-8"))
         assert opts["integration"] == "copilot"
-        assert opts["context_file"] == ".github/copilot-instructions.md"
+        # context_file lives in the agent-context extension config, not init-options.json
+        assert "context_file" not in opts
+
+        import yaml as _yaml
+        ext_cfg_path = project / ".specify" / "extensions" / "agent-context" / "agent-context-config.yml"
+        assert ext_cfg_path.exists(), "agent-context extension config must be created on init"
+        ext_cfg = _yaml.safe_load(ext_cfg_path.read_text(encoding="utf-8"))
+        assert ext_cfg["context_file"] == ".github/copilot-instructions.md"
 
         assert (project / ".specify" / "integrations" / "copilot.manifest.json").exists()
 
@@ -174,6 +201,42 @@ class TestInitIntegrationFlag:
         assert normalized_output.index("Deprecation Warning") < normalized_output.index("Next Steps")
         assert (project / ".myagent" / "commands" / "speckit.plan.md").exists()
 
+    def test_init_optional_preset_failure_reports_target_and_continues(
+        self, tmp_path, monkeypatch
+    ):
+        from typer.testing import CliRunner
+        from specify_cli import app
+        from specify_cli.presets import PresetManager
+
+        def fail_install(self, path, version):
+            raise OSError("preset install exploded\nwith context")
+
+        monkeypatch.setattr(PresetManager, "install_from_directory", fail_install)
+
+        project = tmp_path / "init-preset-warning"
+        result = CliRunner().invoke(
+            app,
+            [
+                "init",
+                str(project),
+                "--integration",
+                "copilot",
+                "--script",
+                "sh",
+                "--no-git",
+                "--preset",
+                "lean",
+            ],
+            catch_exceptions=False,
+        )
+        normalized = _normalize_cli_output(result.output)
+
+        assert result.exit_code == 0, result.output
+        assert "Failed to install preset 'lean'" in normalized
+        assert "preset install exploded with context" in normalized
+        assert "Continuing without the optional preset" in normalized
+        assert "Project ready" in normalized
+
     def test_ai_claude_here_preserves_preexisting_commands(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
@@ -267,6 +330,7 @@ class TestInitIntegrationFlag:
     def test_shared_infra_skip_warning_displayed(self, tmp_path, capsys):
         """Console warning is displayed when files are skipped."""
         from specify_cli import _install_shared_infra
+        from tests.conftest import strip_ansi
 
         project = tmp_path / "warn-test"
         project.mkdir()
@@ -279,10 +343,11 @@ class TestInitIntegrationFlag:
         _install_shared_infra(project, "sh", force=False)
 
         captured = capsys.readouterr()
-        assert "already exist and were not updated" in captured.out
-        assert "specify init --here --force" in captured.out
+        plain = strip_ansi(captured.out)
+        assert "already exist and were not updated" in plain
+        assert "specify init --here --force" in plain
         # Rich may wrap long lines; normalize whitespace for the second command
-        normalized = " ".join(captured.out.split())
+        normalized = " ".join(plain.split())
         assert "specify integration upgrade --force" in normalized
 
     def test_shared_infra_warns_when_manifest_cannot_be_loaded(self, tmp_path, capsys):
@@ -320,8 +385,8 @@ class TestInitIntegrationFlag:
         assert "A new shared manifest will be created" in captured.out
 
     @pytest.mark.skipif(not hasattr(os, "symlink"), reason="symlinks are unavailable")
-    def test_shared_infra_refuses_symlinked_script_destination(self, tmp_path):
-        """Shared script refreshes must not follow destination symlinks."""
+    def test_shared_infra_buckets_symlinked_script_destination(self, tmp_path, capsys):
+        """Symlinked script destinations are bucketed with a warning; the symlink target is preserved."""
         from specify_cli import _install_shared_infra
 
         project = tmp_path / "symlink-script-test"
@@ -334,14 +399,15 @@ class TestInitIntegrationFlag:
         scripts_dir.mkdir(parents=True)
         os.symlink(outside, scripts_dir / "common.sh")
 
-        with pytest.raises(ValueError, match="Refusing to overwrite symlinked"):
-            _install_shared_infra(project, "sh", force=True)
+        _install_shared_infra(project, "sh", force=True)
 
+        captured = capsys.readouterr()
+        assert "symlinked shared infrastructure" in captured.out
         assert outside.read_text(encoding="utf-8") == "# outside\n"
 
     @pytest.mark.skipif(not hasattr(os, "symlink"), reason="symlinks are unavailable")
-    def test_shared_infra_refuses_symlinked_template_destination(self, tmp_path):
-        """Shared template installs must not follow destination symlinks."""
+    def test_shared_infra_buckets_symlinked_template_destination(self, tmp_path, capsys):
+        """Symlinked template destinations are bucketed with a warning; the symlink target is preserved."""
         from specify_cli import _install_shared_infra
 
         project = tmp_path / "symlink-template-test"
@@ -354,9 +420,10 @@ class TestInitIntegrationFlag:
         templates_dir.mkdir(parents=True)
         os.symlink(outside, templates_dir / "plan-template.md")
 
-        with pytest.raises(ValueError, match="Refusing to overwrite symlinked"):
-            _install_shared_infra(project, "sh", force=True)
+        _install_shared_infra(project, "sh", force=True)
 
+        captured = capsys.readouterr()
+        assert "symlinked shared infrastructure" in captured.out
         assert outside.read_text(encoding="utf-8") == "# outside\n"
 
     @pytest.mark.skipif(not hasattr(os, "symlink"), reason="symlinks are unavailable")
@@ -381,7 +448,7 @@ class TestInitIntegrationFlag:
 
     @pytest.mark.skipif(not hasattr(os, "symlink"), reason="symlinks are unavailable")
     def test_shared_infra_refuses_symlinked_specify_directory_before_mkdir(self, tmp_path):
-        """Shared infra directory creation must not follow a symlinked .specify."""
+        """Shared infra installs must not follow a symlinked .specify directory."""
         from specify_cli import _install_shared_infra
 
         project = tmp_path / "symlink-dir-test"
@@ -390,8 +457,10 @@ class TestInitIntegrationFlag:
         outside.mkdir()
         os.symlink(outside, project / ".specify")
 
-        with pytest.raises(ValueError, match="symlinked shared infrastructure directory"):
+        with pytest.raises(ValueError, match="symlinked"):
             _install_shared_infra(project, "sh", force=True)
+        # Nothing should have been written under the symlinked .specify target.
+        assert list(outside.iterdir()) == []
 
         assert not (outside / "scripts").exists()
         assert not (outside / "templates").exists()
@@ -465,8 +534,8 @@ class TestInitIntegrationFlag:
         assert outside.read_text(encoding="utf-8") == "# outside\n"
 
     @pytest.mark.skipif(not hasattr(os, "symlink"), reason="symlinks are unavailable")
-    def test_shared_infra_install_preflights_before_writing(self, tmp_path):
-        """Full shared infra installs validate destinations before writing any file."""
+    def test_shared_infra_install_buckets_unsafe_destinations_and_continues(self, tmp_path):
+        """Symlinked destinations are bucketed with a warning; safe destinations in the same install still complete."""
         from specify_cli.shared_infra import install_shared_infra
 
         project = tmp_path / "preflight-install-test"
@@ -486,19 +555,19 @@ class TestInitIntegrationFlag:
         outside.write_text("# outside\n", encoding="utf-8")
         os.symlink(outside, scripts_dir / "z.sh")
 
-        with pytest.raises(ValueError, match="Refusing to overwrite symlinked"):
-            install_shared_infra(
-                project,
-                "sh",
-                version="test",
-                core_pack=core_pack,
-                repo_root=tmp_path / "unused",
-                console=_NoopConsole(),
-                force=True,
-            )
+        install_shared_infra(
+            project,
+            "sh",
+            version="test",
+            core_pack=core_pack,
+            repo_root=tmp_path / "unused",
+            console=_NoopConsole(),
+            force=True,
+        )
 
-        assert existing.read_text(encoding="utf-8") == "# old a\n"
+        # Symlinked z.sh is preserved (bucketed); regular a.sh is overwritten.
         assert outside.read_text(encoding="utf-8") == "# outside\n"
+        assert existing.read_text(encoding="utf-8") == "# new a\n"
 
     def test_shared_infra_install_supports_nested_script_sources(self, tmp_path):
         """Nested script source files create safe destination parents at write time."""
@@ -862,7 +931,23 @@ class TestGitExtensionAutoInstall:
 
 
 class TestSharedInfraCommandRefs:
-    """Verify _install_shared_infra resolves __SPECKIT_COMMAND_*__ in page templates."""
+    """Verify _install_shared_infra resolves __SPECKIT_COMMAND_*__ in shared infra."""
+
+    @staticmethod
+    def _combined_script_content(project, script_type):
+        script_dir = "bash" if script_type == "sh" else "powershell"
+        suffix = "sh" if script_type == "sh" else "ps1"
+        names = [
+            f"check-prerequisites.{suffix}",
+            f"common.{suffix}",
+            f"setup-tasks.{suffix}",
+        ]
+        return "\n".join(
+            (project / ".specify" / "scripts" / script_dir / name).read_text(
+                encoding="utf-8"
+            )
+            for name in names
+        )
 
     def test_dot_separator_in_page_templates(self, tmp_path):
         """Markdown agents get /speckit.<name> in page templates."""
@@ -907,6 +992,46 @@ class TestSharedInfraCommandRefs:
         assert "__SPECKIT_COMMAND_" not in content
         assert "/speckit-tasks" in content
 
+    @pytest.mark.parametrize("script_type", ["sh", "ps"])
+    def test_dot_separator_in_shared_scripts(self, tmp_path, script_type):
+        """Markdown agents get /speckit.<name> in shared script hints."""
+        from specify_cli import _install_shared_infra
+
+        project = tmp_path / f"dot-script-{script_type}"
+        project.mkdir()
+        (project / ".specify").mkdir()
+
+        _install_shared_infra(project, script_type, invoke_separator=".")
+
+        content = self._combined_script_content(project, script_type)
+        assert "__SPECKIT_COMMAND_" not in content
+        assert "/speckit.specify" in content
+        assert "/speckit.plan" in content
+        assert "/speckit.tasks" in content
+        assert "/speckit-specify" not in content
+        assert "/speckit-plan" not in content
+        assert "/speckit-tasks" not in content
+
+    @pytest.mark.parametrize("script_type", ["sh", "ps"])
+    def test_hyphen_separator_in_shared_scripts(self, tmp_path, script_type):
+        """Skills agents get /speckit-<name> in shared script hints."""
+        from specify_cli import _install_shared_infra
+
+        project = tmp_path / f"hyphen-script-{script_type}"
+        project.mkdir()
+        (project / ".specify").mkdir()
+
+        _install_shared_infra(project, script_type, invoke_separator="-")
+
+        content = self._combined_script_content(project, script_type)
+        assert "__SPECKIT_COMMAND_" not in content
+        assert "/speckit-specify" in content
+        assert "/speckit-plan" in content
+        assert "/speckit-tasks" in content
+        assert "/speckit.specify" not in content
+        assert "/speckit.plan" not in content
+        assert "/speckit.tasks" not in content
+
     def test_full_init_claude_resolves_page_templates(self, tmp_path):
         """Full CLI init with Claude (skills agent) produces hyphen refs in page templates."""
         from typer.testing import CliRunner
@@ -934,6 +1059,10 @@ class TestSharedInfraCommandRefs:
         assert "/speckit-plan" in content, "Claude (skills) should use /speckit-plan"
         assert "__SPECKIT_COMMAND_" not in content
 
+        script_content = self._combined_script_content(project, "sh")
+        assert "/speckit-specify" in script_content
+        assert "/speckit.specify" not in script_content
+
     def test_full_init_copilot_resolves_page_templates(self, tmp_path):
         """Full CLI init with Copilot (markdown agent) produces dot refs in page templates."""
         from typer.testing import CliRunner
@@ -960,6 +1089,10 @@ class TestSharedInfraCommandRefs:
         content = plan.read_text(encoding="utf-8")
         assert "/speckit.plan" in content, "Copilot (markdown) should use /speckit.plan"
         assert "__SPECKIT_COMMAND_" not in content
+
+        script_content = self._combined_script_content(project, "sh")
+        assert "/speckit.specify" in script_content
+        assert "/speckit-specify" not in script_content
 
     def test_full_init_copilot_skills_resolves_page_templates(self, tmp_path):
         """Full CLI init with Copilot --skills produces hyphen refs in page templates."""
@@ -989,6 +1122,10 @@ class TestSharedInfraCommandRefs:
         assert "/speckit-plan" in content, "Copilot --skills should use /speckit-plan"
         assert "/speckit.plan" not in content, "dot-notation leaked into Copilot skills page template"
         assert "__SPECKIT_COMMAND_" not in content
+
+        script_content = self._combined_script_content(project, "sh")
+        assert "/speckit-specify" in script_content
+        assert "/speckit.specify" not in script_content
 
 
 class TestIntegrationCatalogDiscoveryCLI:
@@ -1050,6 +1187,143 @@ class TestIntegrationCatalogDiscoveryCLI:
             return runner.invoke(app, argv, catch_exceptions=False)
         finally:
             os.chdir(old)
+
+    def test_integration_install_failure_reports_phase_target_and_rollback(
+        self, tmp_path, monkeypatch
+    ):
+        from specify_cli.integrations import INTEGRATION_REGISTRY
+        from specify_cli.integrations.base import IntegrationBase
+
+        class BrokenIntegration(IntegrationBase):
+            key = "broken-test"
+            config = {
+                "name": "Broken Test",
+                "folder": ".broken/",
+                "commands_subdir": "commands",
+                "install_url": None,
+                "requires_cli": False,
+            }
+            registrar_config = {
+                "dir": ".broken/commands",
+                "format": "markdown",
+                "args": "$ARGUMENTS",
+                "extension": ".md",
+            }
+            context_file = "BROKEN.md"
+
+            def setup(self, project_root, manifest, **kwargs):
+                raise OSError("setup exploded\nwith context")
+
+            def teardown(self, project_root, manifest, force=False):
+                raise OSError("rollback exploded")
+
+        project = self._make_project(tmp_path)
+        monkeypatch.setitem(INTEGRATION_REGISTRY, "broken-test", BrokenIntegration())
+
+        result = self._invoke(["integration", "install", "broken-test"], project)
+        normalized = _normalize_cli_output(result.output)
+
+        assert result.exit_code == 1, result.output
+        assert "Failed to rollback integration 'broken-test'" in normalized
+        assert "rollback exploded" in normalized
+        assert "Failed to install integration 'broken-test'" in normalized
+        assert "setup exploded with context" in normalized
+
+    def test_integration_upgrade_failure_reports_phase_and_target(
+        self, tmp_path, monkeypatch
+    ):
+        from specify_cli.integrations import INTEGRATION_REGISTRY
+        from specify_cli.integrations.copilot import CopilotIntegration
+
+        class UpgradeBrokenIntegration(CopilotIntegration):
+            key = "upgrade-broken"
+            config = dict(CopilotIntegration.config)
+            config["name"] = "Upgrade Broken"
+
+            def setup(self, project_root, manifest, **kwargs):
+                raise OSError("upgrade exploded\nwith context")
+
+        project = self._make_project(tmp_path)
+        monkeypatch.setitem(
+            INTEGRATION_REGISTRY, "upgrade-broken", UpgradeBrokenIntegration()
+        )
+
+        (project / ".specify" / "integrations").mkdir(parents=True, exist_ok=True)
+        (project / ".specify" / "integration.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "integration": "upgrade-broken",
+                    "integrations": ["upgrade-broken"],
+                    "integration_settings": {"upgrade-broken": {"script": "sh"}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        (
+            project / ".specify" / "integrations" / "upgrade-broken.manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "integration": "upgrade-broken",
+                    "version": "0.0.0",
+                    "installed_at": "2026-05-16T00:00:00+00:00",
+                    "files": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = self._invoke(["integration", "upgrade", "upgrade-broken"], project)
+        normalized = _normalize_cli_output(result.output)
+
+        assert result.exit_code == 1, result.output
+        assert "Failed to upgrade integration 'upgrade-broken'" in normalized
+        assert "upgrade exploded with context" in normalized
+        assert "previous integration files may still be in place" in normalized
+
+    def test_integration_switch_cleanup_warning_reports_phase_and_targets(
+        self, tmp_path, monkeypatch
+    ):
+        from specify_cli.extensions import ExtensionManager
+
+        project = self._make_project(tmp_path)
+        (project / ".specify" / "integrations").mkdir(parents=True, exist_ok=True)
+        (project / ".specify" / "integration.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "integration": "copilot",
+                    "integrations": ["copilot"],
+                    "integration_settings": {"copilot": {"script": "sh"}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        (project / ".specify" / "integrations" / "copilot.manifest.json").write_text(
+            json.dumps(
+                {
+                    "integration": "copilot",
+                    "version": "0.0.0",
+                    "installed_at": "2026-05-16T00:00:00+00:00",
+                    "files": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        def fail_cleanup(self, integration_key):
+            raise OSError("cleanup exploded")
+
+        monkeypatch.setattr(ExtensionManager, "unregister_agent_artifacts", fail_cleanup)
+
+        result = self._invoke(["integration", "switch", "claude"], project)
+        normalized = _normalize_cli_output(result.output)
+
+        assert result.exit_code == 0, result.output
+        assert "Failed to clean up extension artifacts for integration 'copilot'" in normalized
+        assert "cleanup exploded" in normalized
+        assert "Switched to integration" in normalized
 
     # -- Project guard -----------------------------------------------------
 
@@ -1213,6 +1487,30 @@ class TestIntegrationCatalogDiscoveryCLI:
         normalized_output = _normalize_cli_output(result.output)
         assert result.exit_code == 1
         assert "contains invalid JSON" in normalized_output
+        assert "integration.json" in normalized_output
+
+    def test_search_rejects_non_utf8_integration_json_before_catalog_lookup(
+        self, tmp_path, monkeypatch
+    ):
+        """A non-UTF8 ``integration.json`` must surface a clear error and
+        avoid falling through to the catalog lookup, mirroring the malformed-JSON
+        case but for the ``UnicodeDecodeError`` branch in ``_read_integration_json``."""
+        project = self._make_project(tmp_path)
+        # 0xFF is invalid as the leading byte of any UTF-8 sequence, so
+        # ``Path.read_text(encoding="utf-8")`` raises ``UnicodeDecodeError``.
+        (project / ".specify" / "integration.json").write_bytes(b"\xff\xfe\x00\x00")
+
+        from specify_cli.integrations.catalog import IntegrationCatalog
+
+        def fail_search(self, **kwargs):
+            raise AssertionError("catalog search should not be called")
+
+        monkeypatch.setattr(IntegrationCatalog, "search", fail_search)
+
+        result = self._invoke(["integration", "search"], project)
+        normalized_output = _normalize_cli_output(result.output)
+        assert result.exit_code == 1
+        assert "not valid UTF-8" in normalized_output
         assert "integration.json" in normalized_output
 
     def test_search_filters_by_tag(self, tmp_path, monkeypatch):
