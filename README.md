@@ -342,6 +342,7 @@ Additional commands for enhanced quality and validation:
 | `/speckit.clarify`   | `speckit-clarify`      | Clarify underspecified areas (recommended before `/speckit.plan`; formerly `/quizme`)                                                |
 | `/speckit.analyze`   | `speckit-analyze`      | Cross-artifact consistency & coverage analysis (run after `/speckit.tasks`, before `/speckit.implement`)                             |
 | `/speckit.checklist` | `speckit-checklist`    | Generate custom quality checklists that validate requirements completeness, clarity, and consistency (like "unit tests for English") |
+| `/speckit.prompt-master` | `speckit-prompt-master`| Generate optimized prompts for any AI tool (LLMs, coding agents, image AI, video AI, etc.)                                           |
 
 ## 🔧 Specify CLI Reference
 
