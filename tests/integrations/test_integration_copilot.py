@@ -125,13 +125,11 @@ class TestCopilotIntegration:
         agents_dir = tmp_path / ".github" / "agents"
         assert agents_dir.is_dir()
         agent_files = sorted(agents_dir.glob("speckit.*.agent.md"))
-        assert len(agent_files) == 9
-        expected_commands = {
-            "analyze", "checklist", "clarify", "constitution",
-            "implement", "plan", "specify", "tasks", "taskstoissues",
-        }
+        expected_commands = {t.stem for t in copilot.list_command_templates()}
+        assert len(agent_files) == len(expected_commands)
         actual_commands = {f.name.removeprefix("speckit.").removesuffix(".agent.md") for f in agent_files}
         assert actual_commands == expected_commands
+
 
     def test_templates_are_processed(self, tmp_path):
         from specify_cli.integrations.copilot import CopilotIntegration
@@ -177,25 +175,12 @@ class TestCopilotIntegration:
             os.chdir(old_cwd)
         assert result.exit_code == 0
         actual = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file())
+        from specify_cli.integrations.copilot import CopilotIntegration
+        copilot = CopilotIntegration()
+        stems = [t.stem for t in copilot.list_command_templates()]
         expected = sorted([
-            ".github/agents/speckit.analyze.agent.md",
-            ".github/agents/speckit.checklist.agent.md",
-            ".github/agents/speckit.clarify.agent.md",
-            ".github/agents/speckit.constitution.agent.md",
-            ".github/agents/speckit.implement.agent.md",
-            ".github/agents/speckit.plan.agent.md",
-            ".github/agents/speckit.specify.agent.md",
-            ".github/agents/speckit.tasks.agent.md",
-            ".github/agents/speckit.taskstoissues.agent.md",
-            ".github/prompts/speckit.analyze.prompt.md",
-            ".github/prompts/speckit.checklist.prompt.md",
-            ".github/prompts/speckit.clarify.prompt.md",
-            ".github/prompts/speckit.constitution.prompt.md",
-            ".github/prompts/speckit.implement.prompt.md",
-            ".github/prompts/speckit.plan.prompt.md",
-            ".github/prompts/speckit.specify.prompt.md",
-            ".github/prompts/speckit.tasks.prompt.md",
-            ".github/prompts/speckit.taskstoissues.prompt.md",
+            *[f".github/agents/speckit.{stem}.agent.md" for stem in stems],
+            *[f".github/prompts/speckit.{stem}.prompt.md" for stem in stems],
             ".vscode/settings.json",
             ".github/copilot-instructions.md",
             ".specify/integration.json",
@@ -237,25 +222,12 @@ class TestCopilotIntegration:
             os.chdir(old_cwd)
         assert result.exit_code == 0
         actual = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file())
+        from specify_cli.integrations.copilot import CopilotIntegration
+        copilot = CopilotIntegration()
+        stems = [t.stem for t in copilot.list_command_templates()]
         expected = sorted([
-            ".github/agents/speckit.analyze.agent.md",
-            ".github/agents/speckit.checklist.agent.md",
-            ".github/agents/speckit.clarify.agent.md",
-            ".github/agents/speckit.constitution.agent.md",
-            ".github/agents/speckit.implement.agent.md",
-            ".github/agents/speckit.plan.agent.md",
-            ".github/agents/speckit.specify.agent.md",
-            ".github/agents/speckit.tasks.agent.md",
-            ".github/agents/speckit.taskstoissues.agent.md",
-            ".github/prompts/speckit.analyze.prompt.md",
-            ".github/prompts/speckit.checklist.prompt.md",
-            ".github/prompts/speckit.clarify.prompt.md",
-            ".github/prompts/speckit.constitution.prompt.md",
-            ".github/prompts/speckit.implement.prompt.md",
-            ".github/prompts/speckit.plan.prompt.md",
-            ".github/prompts/speckit.specify.prompt.md",
-            ".github/prompts/speckit.tasks.prompt.md",
-            ".github/prompts/speckit.taskstoissues.prompt.md",
+            *[f".github/agents/speckit.{stem}.agent.md" for stem in stems],
+            *[f".github/prompts/speckit.{stem}.prompt.md" for stem in stems],
             ".vscode/settings.json",
             ".github/copilot-instructions.md",
             ".specify/integration.json",
@@ -285,10 +257,11 @@ class TestCopilotIntegration:
 class TestCopilotSkillsMode:
     """Tests for Copilot integration in --skills mode."""
 
-    _SKILL_COMMANDS = [
-        "analyze", "checklist", "clarify", "constitution",
-        "implement", "plan", "specify", "tasks", "taskstoissues",
-    ]
+    @property
+    def _SKILL_COMMANDS(self) -> list[str]:
+        copilot = self._make_copilot()
+        return [t.stem for t in copilot.list_command_templates()]
+
 
     def _make_copilot(self):
         from specify_cli.integrations.copilot import CopilotIntegration

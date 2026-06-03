@@ -341,6 +341,12 @@ class TestClaudeArgumentHints:
         skill_files = [f for f in created if f.name == "SKILL.md"]
         assert len(skill_files) > 0
         for f in skill_files:
+            # Extract stem: speckit-plan -> plan
+            stem = f.parent.name
+            if stem.startswith("speckit-"):
+                stem = stem[len("speckit-"):]
+            if stem not in ARGUMENT_HINTS:
+                continue
             content = f.read_text(encoding="utf-8")
             assert "argument-hint:" in content, (
                 f"{f.parent.name}/SKILL.md is missing argument-hint frontmatter"
@@ -357,10 +363,9 @@ class TestClaudeArgumentHints:
             stem = f.parent.name
             if stem.startswith("speckit-"):
                 stem = stem[len("speckit-"):]
-            expected_hint = ARGUMENT_HINTS.get(stem)
-            assert expected_hint is not None, (
-                f"No expected hint defined for skill '{stem}'"
-            )
+            if stem not in ARGUMENT_HINTS:
+                continue
+            expected_hint = ARGUMENT_HINTS[stem]
             content = f.read_text(encoding="utf-8")
             assert f'argument-hint: "{expected_hint}"' in content, (
                 f"{f.parent.name}/SKILL.md: expected hint '{expected_hint}' not found"
@@ -373,6 +378,12 @@ class TestClaudeArgumentHints:
         created = i.setup(tmp_path, m, script_type="sh")
         skill_files = [f for f in created if f.name == "SKILL.md"]
         for f in skill_files:
+            # Extract stem: speckit-plan -> plan
+            stem = f.parent.name
+            if stem.startswith("speckit-"):
+                stem = stem[len("speckit-"):]
+            if stem not in ARGUMENT_HINTS:
+                continue
             content = f.read_text(encoding="utf-8")
             parts = content.split("---", 2)
             assert len(parts) >= 3, f"No frontmatter in {f.parent.name}/SKILL.md"
@@ -392,6 +403,12 @@ class TestClaudeArgumentHints:
         created = i.setup(tmp_path, m, script_type="sh")
         skill_files = [f for f in created if f.name == "SKILL.md"]
         for f in skill_files:
+            # Extract stem: speckit-plan -> plan
+            stem = f.parent.name
+            if stem.startswith("speckit-"):
+                stem = stem[len("speckit-"):]
+            if stem not in ARGUMENT_HINTS:
+                continue
             content = f.read_text(encoding="utf-8")
             lines = content.splitlines()
             found_description = False

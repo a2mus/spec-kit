@@ -1,5 +1,5 @@
 ---
-description: "Pull data from a web page. First call on a new intent prototypes the flow via $B primitives and returns JSON. Subsequent calls on a matching intent route to a codified browser-skill and return in ~200ms. Read-only — for mutating flows (form fills, clicks, submissions), use /automate. Use when asked to "scrape", "get data from", "pull", "extract from", or "what's on" a page. (gstack)"
+description: "Pull data from a web page. First call on a new intent prototypes the flow via $B primitives and returns JSON. Subsequent calls on a matching intent route to a codified browser-skill and return in ~200ms. Read-only — for mutating flows (form fills, clicks, submissions), use /automate. Use when asked to \"scrape\", \"get data from\", \"pull\", \"extract from\", or \"what's on\" a page. (gstack)"
 ---
 
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->

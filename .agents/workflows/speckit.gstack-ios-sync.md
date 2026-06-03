@@ -1,5 +1,5 @@
 ---
-description: "Regenerate the iOS debug bridge against the latest upstream gstack templates. Updates StateServer.swift, DebugOverlay.swift, Package.swift, and the typed @Observable state accessors. Use after you upgrade gstack or add new ViewModels/properties that need accessor coverage. Use when asked to "resync the iOS debug bridge", "regenerate iOS accessors", or "update the gstack iOS instrumentation". (gstack) Voice triggers (speech-to-text aliases): "resync the iOS debug bridge", "regenerate iOS accessors", "update the gstack iOS instrumentation"."
+description: "Regenerate the iOS debug bridge against the latest upstream gstack templates. Updates StateServer.swift, DebugOverlay.swift, Package.swift, and the typed @Observable state accessors. Use after you upgrade gstack or add new ViewModels/properties that need accessor coverage. Use when asked to \"resync the iOS debug bridge\", \"regenerate iOS accessors\", or \"update the gstack iOS instrumentation\". (gstack) Voice triggers (speech-to-text aliases): \"resync the iOS debug bridge\", \"regenerate iOS accessors\", \"update the gstack iOS instrumentation\"."
 ---
 
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->

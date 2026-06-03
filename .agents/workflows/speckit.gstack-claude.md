@@ -1,5 +1,5 @@
 ---
-description: "Claude Code CLI wrapper for non-Claude hosts - three modes. Review: independent diff review via claude -p. Challenge: adversarial failure-mode review. Consult: ask Claude about the repo with read-only file tools. Use when asked for "claude review", "claude challenge", "ask claude", "second opinion from claude", or "outside voice". (gstack)"
+description: "Claude Code CLI wrapper for non-Claude hosts - three modes. Review: independent diff review via claude -p. Challenge: adversarial failure-mode review. Consult: ask Claude about the repo with read-only file tools. Use when asked for \"claude review\", \"claude challenge\", \"ask claude\", \"second opinion from claude\", or \"outside voice\". (gstack)"
 ---
 
 {{PREAMBLE}}

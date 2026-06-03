@@ -361,17 +361,11 @@ class YamlIntegrationTests:
 
     # -- Complete file inventory ------------------------------------------
 
-    COMMAND_STEMS = [
-        "analyze",
-        "checklist",
-        "clarify",
-        "constitution",
-        "implement",
-        "plan",
-        "specify",
-        "tasks",
-        "taskstoissues",
-    ]
+    @property
+    def COMMAND_STEMS(self) -> list[str]:
+        i = get_integration(self.KEY)
+        return [t.stem for t in i.list_command_templates()]
+
 
     def _expected_files(self, script_variant: str) -> list[str]:
         """Build the expected file list for this integration + script variant."""

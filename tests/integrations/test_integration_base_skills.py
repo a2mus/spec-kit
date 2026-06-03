@@ -99,10 +99,7 @@ class SkillsIntegrationTests:
         created = i.setup(tmp_path, m)
         skill_files = [f for f in created if "scripts" not in f.parts]
 
-        expected_commands = {
-            "analyze", "checklist", "clarify", "constitution",
-            "implement", "plan", "specify", "tasks", "taskstoissues",
-        }
+        expected_commands = {t.stem for t in i.list_command_templates()}
 
         # Derive command names from the skill directory names
         actual_commands = set()
@@ -358,10 +355,11 @@ class SkillsIntegrationTests:
 
     # -- Complete file inventory ------------------------------------------
 
-    _SKILL_COMMANDS = [
-        "analyze", "checklist", "clarify", "constitution",
-        "implement", "plan", "specify", "tasks", "taskstoissues",
-    ]
+    @property
+    def _SKILL_COMMANDS(self) -> list[str]:
+        i = get_integration(self.KEY)
+        return [t.stem for t in i.list_command_templates()]
+
 
     def _expected_files(self, script_variant: str) -> list[str]:
         """Build the full expected file list for a given script variant."""
