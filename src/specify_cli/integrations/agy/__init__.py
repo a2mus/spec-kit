@@ -43,6 +43,7 @@ class AgyIntegration(SkillsIntegration):
         "extension": "/SKILL.md",
     }
     context_file = "AGENTS.md"
+    rules_subdir = "rules"
 
     @staticmethod
     def _inject_hook_command_note(content: str) -> str:
