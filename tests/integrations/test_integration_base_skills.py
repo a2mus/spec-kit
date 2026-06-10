@@ -18,6 +18,9 @@ from specify_cli.integrations.manifest import IntegrationManifest
 
 
 class SkillsIntegrationTests:
+
+    import pathlib as _pathlib
+    _proj_root = _pathlib.Path(__file__).resolve().parents[2]
     """Mixin — set class-level constants and inherit these tests.
 
     Required class attrs on subclass::
@@ -99,11 +102,7 @@ class SkillsIntegrationTests:
         created = i.setup(tmp_path, m)
         skill_files = [f for f in created if "scripts" not in f.parts]
 
-<<<<<<< HEAD
         expected_commands = {t.stem for t in i.list_command_templates()}
-=======
-        expected_commands = set(self._SKILL_COMMANDS)
->>>>>>> c156cc4cc86a34eee7b3e4588c9f14f6e6c7e0fe
 
         # Derive command names from the skill directory names
         actual_commands = set()
@@ -391,7 +390,6 @@ class SkillsIntegrationTests:
         assert len(skills_opts) == 1
         assert skills_opts[0].is_flag is True
 
-<<<<<<< HEAD
     # -- Complete file inventory ------------------------------------------
 
     @property
@@ -399,13 +397,53 @@ class SkillsIntegrationTests:
         i = get_integration(self.KEY)
         return [t.stem for t in i.list_command_templates()]
 
-=======
-    import pathlib as _pathlib
-    _proj_root = _pathlib.Path(__file__).resolve().parents[2]
-    _SKILL_COMMANDS = sorted(
-        [p.stem for p in (_proj_root / "templates" / "commands").glob("*.md")]
-    )
->>>>>>> c156cc4cc86a34eee7b3e4588c9f14f6e6c7e0fe
+    def _expected_guard_files(self) -> list[str]:
+        import pathlib as _pathlib
+        proj_root = _pathlib.Path(__file__).resolve().parents[2]
+        guards_src = proj_root / "templates" / "rules" / "guards"
+        i = get_integration(self.KEY)
+        rules_dest = i.guard_rules_dest(proj_root)
+        files = []
+        if not guards_src.is_dir():
+            return files
+        if rules_dest is not None:
+            folder = i.config.get("folder", "")
+            rules_subdir = getattr(i, "rules_subdir", "rules")
+            prefix = (folder.rstrip("/") + "/" + rules_subdir).strip("/")
+            prefix = prefix + "/" if prefix else ""
+            for guard_dir in sorted(guards_src.iterdir()):
+                if not guard_dir.is_dir():
+                    continue
+                rule_file = guard_dir / "rule.md"
+                if not rule_file.is_file():
+                    continue
+                guard_name = guard_dir.name
+                dest_name = f"guard-{guard_name.replace('-guard', '')}"
+                ext = ".mdc" if self.KEY == "cursor-agent" else ".md"
+                files.append(f"{prefix}{dest_name}{ext}")
+                refs_src = guard_dir / "references"
+                if refs_src.is_dir():
+                    for ref in sorted(refs_src.iterdir()):
+                        if ref.is_file():
+                            files.append(f"{prefix}{dest_name}-references/{ref.name}")
+        else:
+            folder = i.config.get("folder", "")
+            subdir = i.config.get("commands_subdir", "commands")
+            prefix = folder.rstrip("/") + "/" + subdir
+            for guard_dir in sorted(guards_src.iterdir()):
+                if not guard_dir.is_dir():
+                    continue
+                rule_file = guard_dir / "rule.md"
+                if not rule_file.is_file():
+                    continue
+                guard_name = guard_dir.name
+                files.append(f"{prefix}/speckit-{guard_name}/SKILL.md")
+                refs_src = guard_dir / "references"
+                if refs_src.is_dir():
+                    for ref in sorted(refs_src.iterdir()):
+                        if ref.is_file():
+                            files.append(f"{prefix}/speckit-{guard_name}/references/{ref.name}")
+        return files
 
     def _expected_files(self, script_variant: str) -> list[str]:
         """Build the full expected file list for a given script variant."""
@@ -472,7 +510,16 @@ class SkillsIntegrationTests:
         # Agent context file (if set)
         if i.context_file:
             files.append(i.context_file)
-        return sorted(files)
+
+        # Converted command templates
+        for stem in self._SKILL_COMMANDS:
+            skill_name = f"speckit-{stem.replace('.', '-')}"
+            files.append(f"{skills_prefix}/{skill_name}/SKILL.md")
+
+        # Guard rules
+        files.extend(self._expected_guard_files())
+
+        return sorted(list(set(files)))
 
     def test_complete_file_inventory_sh(self, tmp_path):
         """Every file produced by specify init --integration <key> --script sh."""

@@ -220,4 +220,7 @@ class TestClineIntegration(MarkdownIntegrationTests):
         if i.context_file:
             files.append(i.context_file)
 
+        # Guard rules
+        files.extend(self._expected_guard_files())
+
         return sorted(files)
