@@ -19,4 +19,5 @@ class KilocodeIntegration(MarkdownIntegration):
         "extension": ".md",
     }
     context_file = ".kilocode/rules/specify-rules.md"
+    rules_subdir = "rules"
     multi_install_safe = True

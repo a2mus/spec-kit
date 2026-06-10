@@ -59,6 +59,10 @@ class HermesIntegration(SkillsIntegration):
         """Return ``~/.hermes/skills/`` — the global skills directory."""
         return Path.home() / ".hermes" / "skills"
 
+    def commands_dest(self, project_root: Path) -> Path:
+        """For Hermes, skills live globally under ~/.hermes/skills/."""
+        return self._hermes_home_skills_dir()
+
     # -- Options -----------------------------------------------------------
 
     @classmethod

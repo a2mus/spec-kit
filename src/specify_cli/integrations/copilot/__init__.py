@@ -113,6 +113,11 @@ class CopilotIntegration(IntegrationBase):
     # Mutable flag set by setup() — indicates the active scaffolding mode.
     _skills_mode: bool = False
 
+    def commands_dest(self, project_root: Path) -> Path:
+        if self._skills_mode:
+            return project_root / ".github" / "skills"
+        return super().commands_dest(project_root)
+
     def effective_invoke_separator(
         self, parsed_options: dict[str, Any] | None = None
     ) -> str:

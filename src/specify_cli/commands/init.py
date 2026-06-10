@@ -467,6 +467,8 @@ def register(app: typer.Typer) -> None:
         if ai_skills or _is_skills_integration:
             tracker_steps.append(("ecc-skills", "Install ECC skills"))
 
+        tracker_steps.append(("guard-rules", "Install guard rules"))
+
         tracker_steps.extend([
             ("git", "Install git extension"),
             ("workflow", "Install bundled workflow"),
@@ -538,6 +540,17 @@ def register(app: typer.Typer) -> None:
                 if ai_skills or _is_skills_integration:
                     tracker.start("ecc-skills")
                     install_ecc_skills(project_path, selected_ai, tracker=tracker)
+
+                tracker.start("guard-rules")
+                try:
+                    created_rules = resolved_integration.install_guard_rules(project_path, manifest)
+                    manifest.save()
+                    if created_rules:
+                        tracker.complete("guard-rules", f"{len(created_rules)} files/skills installed")
+                    else:
+                        tracker.skip("guard-rules", "no guard rules installed")
+                except Exception as gr_err:
+                    tracker.error("guard-rules", f"install failed: {str(gr_err)}")
 
                 if not no_git:
                     tracker.start("git")

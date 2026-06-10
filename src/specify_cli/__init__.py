@@ -1127,6 +1127,7 @@ def integration_install(
             script_type=selected_script,
             raw_options=raw_options,
         )
+        integration.install_guard_rules(project_root, manifest)
         manifest.save()
         new_installed = _dedupe_integration_keys([*installed_keys, integration.key])
         new_default = default_key or integration.key
@@ -1649,6 +1650,7 @@ def integration_switch(
             script_type=selected_script,
             raw_options=raw_options,
         )
+        target_integration.install_guard_rules(project_root, manifest)
         manifest.save()
         _set_default_integration(
             project_root,
@@ -1828,6 +1830,7 @@ def integration_upgrade(
             script_type=selected_script,
             raw_options=raw_options,
         )
+        integration.install_guard_rules(project_root, new_manifest)
         settings = _with_integration_setting(
             current,
             key,

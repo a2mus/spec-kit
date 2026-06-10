@@ -106,6 +106,14 @@ class IntegrationBase(ABC):
     integration that sets this flag.
     """
 
+    rules_subdir: str | None = None
+    """Relative path within the agent's folder to the rules directory.
+
+    When set (e.g. ``"rules"``), guard rules are installed as standalone
+    markdown files into ``<folder>/<rules_subdir>/``.  When ``None``, guard
+    rules are installed as skills via ``<folder>/<commands_subdir>/``.
+    """
+
     # -- Markers for managed context section ------------------------------
 
     CONTEXT_MARKER_START = "<!-- SPECKIT START -->"
@@ -915,6 +923,139 @@ class IntegrationBase(ABC):
         content = IntegrationBase.resolve_command_refs(content, invoke_separator)
 
         return content
+
+    def guard_rules_dest(self, project_root: Path) -> Path | None:
+        """Return the directory where guard rules should be installed.
+
+        Returns the agent's rules directory when ``rules_subdir`` is set,
+        otherwise returns ``None`` (meaning guards should be installed as
+        skills via ``commands_dest``).
+        """
+        if self.rules_subdir is None or not self.config:
+            return None
+        folder = self.config.get("folder", "")
+        return project_root / folder / self.rules_subdir
+
+    def install_guard_rules(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+    ) -> list[Path]:
+        """Install guard rules into the agent's rules or skills directory.
+
+        For agents with a ``rules_subdir``, rules are installed as individual
+        markdown files (e.g. ``.windsurf/rules/guard-clean-code.md``).
+
+        For agents without a ``rules_subdir`` (skills-based agents), rules
+        are installed as ``speckit-<name>/SKILL.md`` directories under the
+        commands/skills directory.
+
+        Returns the list of files created.
+        """
+        from .._assets import _locate_guard_rules
+
+        guards_source = _locate_guard_rules()
+        if guards_source is None or not guards_source.is_dir():
+            return []
+
+        created: list[Path] = []
+        rules_dest = self.guard_rules_dest(project_root)
+
+        def record_safe(path: Path) -> None:
+            try:
+                self.record_file_in_manifest(path, project_root, manifest)
+            except ValueError:
+                pass
+
+        if rules_dest is not None:
+            # Rules-directory agent: install as individual rule files
+            rules_dest.mkdir(parents=True, exist_ok=True)
+            for guard_dir in sorted(guards_source.iterdir()):
+                if not guard_dir.is_dir():
+                    continue
+                rule_file = guard_dir / "rule.md"
+                if not rule_file.is_file():
+                    continue
+
+                guard_name = guard_dir.name  # e.g. "clean-code-guard"
+                dest_name = f"guard-{guard_name.replace('-guard', '')}"
+                dest_file = rules_dest / f"{dest_name}.md"
+
+                # For Cursor, use .mdc extension with alwaysApply frontmatter
+                if self.key == "cursor-agent":
+                    dest_file = rules_dest / f"{dest_name}.mdc"
+                    content = rule_file.read_text(encoding="utf-8")
+                    content = self._ensure_mdc_frontmatter(content)
+                    if not dest_file.exists():
+                        dest_file.write_text(content, encoding="utf-8")
+                        record_safe(dest_file)
+                        created.append(dest_file)
+                else:
+                    if not dest_file.exists():
+                        shutil.copy2(rule_file, dest_file)
+                        record_safe(dest_file)
+                        created.append(dest_file)
+
+                # Copy references directory alongside the rule file
+                refs_src = guard_dir / "references"
+                refs_dest = rules_dest / f"{dest_name}-references"
+                if refs_src.is_dir() and not refs_dest.exists():
+                    shutil.copytree(refs_src, refs_dest)
+                    for ref_file in sorted(refs_dest.rglob("*")):
+                        if ref_file.is_file():
+                            record_safe(ref_file)
+                            created.append(ref_file)
+        else:
+            # Skills-based agent: install as speckit-<name>/SKILL.md
+            skills_dest = self.commands_dest(project_root)
+            skills_dest.mkdir(parents=True, exist_ok=True)
+            for guard_dir in sorted(guards_source.iterdir()):
+                if not guard_dir.is_dir():
+                    continue
+                rule_file = guard_dir / "rule.md"
+                if not rule_file.is_file():
+                    continue
+
+                guard_name = guard_dir.name  # e.g. "clean-code-guard"
+                skill_dir = skills_dest / f"speckit-{guard_name}"
+                if skill_dir.exists():
+                    continue
+
+                skill_dir.mkdir(parents=True, exist_ok=True)
+                skill_md = skill_dir / "SKILL.md"
+
+                # Add SKILL.md frontmatter wrapping the rule content
+                content = rule_file.read_text(encoding="utf-8")
+                # Strip HTML comment attribution header (re-add in frontmatter)
+                lines = content.splitlines(True)
+                while lines and lines[0].strip().startswith("<!--"):
+                    lines.pop(0)
+                content = "".join(lines).lstrip("\n")
+                frontmatter = (
+                    f"---\n"
+                    f"name: {guard_name}\n"
+                    f"description: Always-active quality guard rule. "
+                    f"Adapted from amElnagdy/guard-skills (MIT).\n"
+                    f"alwaysApply: true\n"
+                    f"---\n\n"
+                )
+                skill_md.write_text(
+                    frontmatter + content, encoding="utf-8"
+                )
+                record_safe(skill_md)
+                created.append(skill_md)
+
+                # Copy references directory into the skill directory
+                refs_src = guard_dir / "references"
+                refs_dest = skill_dir / "references"
+                if refs_src.is_dir():
+                    shutil.copytree(refs_src, refs_dest)
+                    for ref_file in sorted(refs_dest.rglob("*")):
+                        if ref_file.is_file():
+                            record_safe(ref_file)
+                            created.append(ref_file)
+
+        return created
 
     def setup(
         self,

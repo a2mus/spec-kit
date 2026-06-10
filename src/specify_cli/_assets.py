@@ -101,6 +101,26 @@ def _locate_bundled_preset(preset_id: str) -> Path | None:
     return None
 
 
+def _locate_guard_rules() -> Path | None:
+    """Return the path to the bundled guard rules directory, or None.
+
+    Checks the wheel's core_pack first, then falls back to the
+    source-checkout ``templates/rules/guards/`` directory.
+    """
+    core = _locate_core_pack()
+    if core is not None:
+        candidate = core / "rules" / "guards"
+        if candidate.is_dir():
+            return candidate
+
+    # Source-checkout / editable install: look relative to repo root
+    candidate = _repo_root() / "templates" / "rules" / "guards"
+    if candidate.is_dir():
+        return candidate
+
+    return None
+
+
 def get_speckit_version() -> str:
     """Get current spec-kit version."""
     try:

@@ -19,4 +19,5 @@ class AuggieIntegration(MarkdownIntegration):
         "extension": ".md",
     }
     context_file = ".augment/rules/specify-rules.md"
+    rules_subdir = "rules"
     multi_install_safe = True

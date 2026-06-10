@@ -71,6 +71,7 @@ class ClineIntegration(MarkdownIntegration):
         "invoke_separator": "-",
     }
     context_file = ".clinerules/specify-rules.md"
+    rules_subdir = ""
     invoke_separator = "-"
     multi_install_safe = True
 

@@ -26,6 +26,7 @@ class CursorAgentIntegration(SkillsIntegration):
     }
 
     context_file = ".cursor/rules/specify-rules.mdc"
+    rules_subdir = "rules"
     multi_install_safe = True
 
     @classmethod

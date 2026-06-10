@@ -1,5 +1,5 @@
 ---
-description: "Decompose product specifications into ordered, individual feature specs. Reads constitution.md, product-spec.md, and ui-spec.md to generate a logical sequence of feature specification files ready for /speckit.specify."
+description: "Decompose product specifications into ordered, individual feature specs. Reads constitution.md, product-spec.md, and ui-spec.md to generate a logical sequence of feature specification files ready for specification."
 handoffs:
   - label: Specify First Feature
     agent: speckit.specify

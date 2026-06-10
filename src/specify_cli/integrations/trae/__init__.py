@@ -27,6 +27,7 @@ class TraeIntegration(SkillsIntegration):
         "extension": "/SKILL.md",
     }
     context_file = ".trae/rules/project_rules.md"
+    rules_subdir = "rules"
     multi_install_safe = True
 
     @classmethod

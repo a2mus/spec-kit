@@ -19,4 +19,5 @@ class WindsurfIntegration(MarkdownIntegration):
         "extension": ".md",
     }
     context_file = ".windsurf/rules/specify-rules.md"
+    rules_subdir = "rules"
     multi_install_safe = True

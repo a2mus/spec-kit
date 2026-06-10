@@ -28,6 +28,7 @@ class LingmaIntegration(SkillsIntegration):
         "extension": "/SKILL.md",
     }
     context_file = ".lingma/rules/specify-rules.md"
+    rules_subdir = "rules"
 
     @classmethod
     def options(cls) -> list[IntegrationOption]:
