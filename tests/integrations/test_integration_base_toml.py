@@ -388,9 +388,9 @@ class TomlIntegrationTests:
             assert "<!-- SPECKIT END -->" not in remaining
             assert "# My Rules" in remaining
 
-    # -- CLI auto-promote -------------------------------------------------
+    # -- CLI integration flag -------------------------------------------------
 
-    def test_ai_flag_auto_promotes(self, tmp_path):
+    def test_integration_flag_auto_promotes(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
 
@@ -405,21 +405,20 @@ class TomlIntegrationTests:
                 [
                     "init",
                     "--here",
-                    "--ai",
+                    "--integration",
                     self.KEY,
                     "--script",
                     "sh",
-                    "--no-git",
                     "--ignore-agent-tools",
                 ],
                 catch_exceptions=False,
             )
         finally:
             os.chdir(old_cwd)
-        assert result.exit_code == 0, f"init --ai {self.KEY} failed: {result.output}"
+        assert result.exit_code == 0, f"init --integration {self.KEY} failed: {result.output}"
         i = get_integration(self.KEY)
         cmd_dir = i.commands_dest(project)
-        assert cmd_dir.is_dir(), f"--ai {self.KEY} did not create commands directory"
+        assert cmd_dir.is_dir(), f"--integration {self.KEY} did not create commands directory"
 
     def test_integration_flag_creates_files(self, tmp_path):
         from typer.testing import CliRunner
@@ -440,7 +439,6 @@ class TomlIntegrationTests:
                     self.KEY,
                     "--script",
                     "sh",
-                    "--no-git",
                     "--ignore-agent-tools",
                 ],
                 catch_exceptions=False,
@@ -469,7 +467,7 @@ class TomlIntegrationTests:
             os.chdir(project)
             result = CliRunner().invoke(app, [
                 "init", "--here", "--integration", self.KEY, "--script", "sh",
-                "--no-git", "--ignore-agent-tools",
+                "--ignore-agent-tools",
             ], catch_exceptions=False)
         finally:
             os.chdir(old_cwd)
@@ -483,58 +481,18 @@ class TomlIntegrationTests:
 
     # -- Complete file inventory ------------------------------------------
 
-    @property
-    def COMMAND_STEMS(self) -> list[str]:
-        i = get_integration(self.KEY)
-        return ["agent-context.update"] + [t.stem for t in i.list_command_templates()]
-
-    def _expected_guard_files(self) -> list[str]:
-        import pathlib as _pathlib
-        proj_root = _pathlib.Path(__file__).resolve().parents[2]
-        guards_src = proj_root / "templates" / "rules" / "guards"
-        i = get_integration(self.KEY)
-        rules_dest = i.guard_rules_dest(proj_root)
-        files = []
-        if not guards_src.is_dir():
-            return files
-        if rules_dest is not None:
-            folder = i.config.get("folder", "")
-            rules_subdir = getattr(i, "rules_subdir", "rules")
-            prefix = (folder.rstrip("/") + "/" + rules_subdir).strip("/")
-            prefix = prefix + "/" if prefix else ""
-            for guard_dir in sorted(guards_src.iterdir()):
-                if not guard_dir.is_dir():
-                    continue
-                rule_file = guard_dir / "rule.md"
-                if not rule_file.is_file():
-                    continue
-                guard_name = guard_dir.name
-                dest_name = f"guard-{guard_name.replace('-guard', '')}"
-                ext = ".mdc" if self.KEY == "cursor-agent" else ".md"
-                files.append(f"{prefix}{dest_name}{ext}")
-                refs_src = guard_dir / "references"
-                if refs_src.is_dir():
-                    for ref in sorted(refs_src.iterdir()):
-                        if ref.is_file():
-                            files.append(f"{prefix}{dest_name}-references/{ref.name}")
-        else:
-            folder = i.config.get("folder", "")
-            subdir = i.config.get("commands_subdir", "commands")
-            prefix = folder.rstrip("/") + "/" + subdir
-            for guard_dir in sorted(guards_src.iterdir()):
-                if not guard_dir.is_dir():
-                    continue
-                rule_file = guard_dir / "rule.md"
-                if not rule_file.is_file():
-                    continue
-                guard_name = guard_dir.name
-                files.append(f"{prefix}/speckit-{guard_name}/SKILL.md")
-                refs_src = guard_dir / "references"
-                if refs_src.is_dir():
-                    for ref in sorted(refs_src.iterdir()):
-                        if ref.is_file():
-                            files.append(f"{prefix}/speckit-{guard_name}/references/{ref.name}")
-        return files
+    COMMAND_STEMS = [
+        "agent-context.update",
+        "analyze",
+        "clarify",
+        "constitution",
+        "implement",
+        "plan",
+        "checklist",
+        "specify",
+        "tasks",
+        "taskstoissues",
+    ]
 
     def _expected_files(self, script_variant: str) -> list[str]:
         """Build the expected file list for this integration + script variant."""
@@ -598,7 +556,6 @@ class TomlIntegrationTests:
         # Agent context file (if set)
         if i.context_file:
             files.append(i.context_file)
-        files.extend(self._expected_guard_files())
 
         return sorted(files)
 
@@ -621,7 +578,6 @@ class TomlIntegrationTests:
                     self.KEY,
                     "--script",
                     "sh",
-                    "--no-git",
                     "--ignore-agent-tools",
                 ],
                 catch_exceptions=False,
@@ -630,7 +586,7 @@ class TomlIntegrationTests:
             os.chdir(old_cwd)
         assert result.exit_code == 0, f"init failed: {result.output}"
         actual = sorted(
-            p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file()
+            p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file() and ".git" not in p.parts
         )
         expected = self._expected_files("sh")
         assert actual == expected, (
@@ -657,7 +613,6 @@ class TomlIntegrationTests:
                     self.KEY,
                     "--script",
                     "ps",
-                    "--no-git",
                     "--ignore-agent-tools",
                 ],
                 catch_exceptions=False,
@@ -666,7 +621,7 @@ class TomlIntegrationTests:
             os.chdir(old_cwd)
         assert result.exit_code == 0, f"init failed: {result.output}"
         actual = sorted(
-            p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file()
+            p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file() and ".git" not in p.parts
         )
         expected = self._expected_files("ps")
         assert actual == expected, (

@@ -2,34 +2,11 @@
 
 import json
 import os
-import pathlib
+
 import yaml
 
 from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
-
-
-def _expected_guard_files(commands_subdir: str) -> list[str]:
-    proj_root = pathlib.Path(__file__).resolve().parents[2]
-    guards_src = proj_root / "templates" / "rules" / "guards"
-    files = []
-    if not guards_src.is_dir():
-        return files
-    prefix = f".github/{commands_subdir}"
-    for guard_dir in sorted(guards_src.iterdir()):
-        if not guard_dir.is_dir():
-            continue
-        rule_file = guard_dir / "rule.md"
-        if not rule_file.is_file():
-            continue
-        guard_name = guard_dir.name
-        files.append(f"{prefix}/speckit-{guard_name}/SKILL.md")
-        refs_src = guard_dir / "references"
-        if refs_src.is_dir():
-            for ref in sorted(refs_src.iterdir()):
-                if ref.is_file():
-                    files.append(f"{prefix}/speckit-{guard_name}/references/{ref.name}")
-    return files
 
 
 class TestCopilotIntegration:
@@ -148,11 +125,13 @@ class TestCopilotIntegration:
         agents_dir = tmp_path / ".github" / "agents"
         assert agents_dir.is_dir()
         agent_files = sorted(agents_dir.glob("speckit.*.agent.md"))
-        expected_commands = {t.stem for t in copilot.list_command_templates()}
-        assert len(agent_files) == len(expected_commands)
+        assert len(agent_files) == 9
+        expected_commands = {
+            "analyze", "clarify", "constitution", "implement",
+            "plan", "checklist", "specify", "tasks", "taskstoissues",
+        }
         actual_commands = {f.name.removeprefix("speckit.").removesuffix(".agent.md") for f in agent_files}
         assert actual_commands == expected_commands
-
 
     def test_templates_are_processed(self, tmp_path):
         from specify_cli.integrations.copilot import CopilotIntegration
@@ -207,18 +186,33 @@ class TestCopilotIntegration:
         try:
             os.chdir(project)
             result = CliRunner().invoke(app, [
-                "init", "--here", "--integration", "copilot", "--script", "sh", "--no-git",
+                "init", "--here", "--integration", "copilot", "--script", "sh",
             ], catch_exceptions=False)
         finally:
             os.chdir(old_cwd)
         assert result.exit_code == 0
-        actual = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file())
-        from specify_cli.integrations.copilot import CopilotIntegration
-        copilot = CopilotIntegration()
-        stems = ["agent-context.update"] + [t.stem for t in copilot.list_command_templates()]
+        actual = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file() and ".git" not in p.parts)
         expected = sorted([
-            *[f".github/agents/speckit.{stem}.agent.md" for stem in stems],
-            *[f".github/prompts/speckit.{stem}.prompt.md" for stem in stems],
+            ".github/agents/speckit.agent-context.update.agent.md",
+            ".github/agents/speckit.analyze.agent.md",
+            ".github/agents/speckit.checklist.agent.md",
+            ".github/agents/speckit.clarify.agent.md",
+            ".github/agents/speckit.constitution.agent.md",
+            ".github/agents/speckit.implement.agent.md",
+            ".github/agents/speckit.plan.agent.md",
+            ".github/agents/speckit.specify.agent.md",
+            ".github/agents/speckit.tasks.agent.md",
+            ".github/agents/speckit.taskstoissues.agent.md",
+            ".github/prompts/speckit.agent-context.update.prompt.md",
+            ".github/prompts/speckit.analyze.prompt.md",
+            ".github/prompts/speckit.checklist.prompt.md",
+            ".github/prompts/speckit.clarify.prompt.md",
+            ".github/prompts/speckit.constitution.prompt.md",
+            ".github/prompts/speckit.implement.prompt.md",
+            ".github/prompts/speckit.plan.prompt.md",
+            ".github/prompts/speckit.specify.prompt.md",
+            ".github/prompts/speckit.tasks.prompt.md",
+            ".github/prompts/speckit.taskstoissues.prompt.md",
             ".vscode/settings.json",
             ".github/copilot-instructions.md",
             ".specify/extensions.yml",
@@ -246,7 +240,6 @@ class TestCopilotIntegration:
             ".specify/memory/constitution.md",
             ".specify/workflows/speckit/workflow.yml",
             ".specify/workflows/workflow-registry.json",
-            *_expected_guard_files("agents"),
         ])
         assert actual == expected, (
             f"Missing: {sorted(set(expected) - set(actual))}\n"
@@ -263,18 +256,33 @@ class TestCopilotIntegration:
         try:
             os.chdir(project)
             result = CliRunner().invoke(app, [
-                "init", "--here", "--integration", "copilot", "--script", "ps", "--no-git",
+                "init", "--here", "--integration", "copilot", "--script", "ps",
             ], catch_exceptions=False)
         finally:
             os.chdir(old_cwd)
         assert result.exit_code == 0
-        actual = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file())
-        from specify_cli.integrations.copilot import CopilotIntegration
-        copilot = CopilotIntegration()
-        stems = ["agent-context.update"] + [t.stem for t in copilot.list_command_templates()]
+        actual = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file() and ".git" not in p.parts)
         expected = sorted([
-            *[f".github/agents/speckit.{stem}.agent.md" for stem in stems],
-            *[f".github/prompts/speckit.{stem}.prompt.md" for stem in stems],
+            ".github/agents/speckit.agent-context.update.agent.md",
+            ".github/agents/speckit.analyze.agent.md",
+            ".github/agents/speckit.checklist.agent.md",
+            ".github/agents/speckit.clarify.agent.md",
+            ".github/agents/speckit.constitution.agent.md",
+            ".github/agents/speckit.implement.agent.md",
+            ".github/agents/speckit.plan.agent.md",
+            ".github/agents/speckit.specify.agent.md",
+            ".github/agents/speckit.tasks.agent.md",
+            ".github/agents/speckit.taskstoissues.agent.md",
+            ".github/prompts/speckit.agent-context.update.prompt.md",
+            ".github/prompts/speckit.analyze.prompt.md",
+            ".github/prompts/speckit.checklist.prompt.md",
+            ".github/prompts/speckit.clarify.prompt.md",
+            ".github/prompts/speckit.constitution.prompt.md",
+            ".github/prompts/speckit.implement.prompt.md",
+            ".github/prompts/speckit.plan.prompt.md",
+            ".github/prompts/speckit.specify.prompt.md",
+            ".github/prompts/speckit.tasks.prompt.md",
+            ".github/prompts/speckit.taskstoissues.prompt.md",
             ".vscode/settings.json",
             ".github/copilot-instructions.md",
             ".specify/extensions.yml",
@@ -302,7 +310,6 @@ class TestCopilotIntegration:
             ".specify/memory/constitution.md",
             ".specify/workflows/speckit/workflow.yml",
             ".specify/workflows/workflow-registry.json",
-            *_expected_guard_files("agents"),
         ])
         assert actual == expected, (
             f"Missing: {sorted(set(expected) - set(actual))}\n"
@@ -313,12 +320,10 @@ class TestCopilotIntegration:
 class TestCopilotSkillsMode:
     """Tests for Copilot integration in --skills mode."""
 
-    _proj_root = pathlib.Path(__file__).resolve().parents[2]
-
-    @property
-    def _SKILL_COMMANDS(self) -> list[str]:
-        copilot = self._make_copilot()
-        return [t.stem for t in copilot.list_command_templates()]
+    _SKILL_COMMANDS = [
+        "analyze", "clarify", "constitution", "implement",
+        "plan", "checklist", "specify", "tasks", "taskstoissues",
+    ]
 
     def _make_copilot(self):
         from specify_cli.integrations.copilot import CopilotIntegration
@@ -421,8 +426,8 @@ class TestCopilotSkillsMode:
 
     # -- Copilot-specific post-processing ---------------------------------
 
-    def test_post_process_skill_content_injects_mode(self):
-        """post_process_skill_content() should inject mode: field."""
+    def test_post_process_skill_content_does_not_inject_mode(self):
+        """post_process_skill_content() must NOT inject mode: — VS Code Copilot does not support it."""
         copilot = self._make_copilot()
         content = (
             "---\n"
@@ -432,10 +437,10 @@ class TestCopilotSkillsMode:
             "\nBody content\n"
         )
         updated = copilot.post_process_skill_content(content)
-        assert "mode: speckit.plan" in updated
+        assert "mode:" not in updated
 
     def test_post_process_skill_content_injects_hook_note(self):
-        """post_process_skill_content() should inject shared hook guidance."""
+        """post_process_skill_content() should inject shared hook guidance but not mode:."""
         copilot = self._make_copilot()
         content = (
             "---\n"
@@ -446,7 +451,7 @@ class TestCopilotSkillsMode:
         )
         updated = copilot.post_process_skill_content(content)
         assert "replace dots" in updated
-        assert "mode: speckit.specify" in updated
+        assert "mode:" not in updated
 
     def test_post_process_idempotent(self):
         """post_process_skill_content() must be idempotent."""
@@ -462,8 +467,8 @@ class TestCopilotSkillsMode:
         second = copilot.post_process_skill_content(first)
         assert first == second
 
-    def test_skills_have_mode_in_frontmatter(self, tmp_path):
-        """Generated SKILL.md files should have mode: field from post-processing."""
+    def test_skills_do_not_have_mode_in_frontmatter(self, tmp_path):
+        """Generated SKILL.md files must NOT contain mode: — VS Code Copilot does not support it."""
         copilot = self._make_copilot()
         created, _ = self._setup_skills(copilot, tmp_path)
         skill_files = [f for f in created if f.name == "SKILL.md"]
@@ -472,11 +477,7 @@ class TestCopilotSkillsMode:
             content = f.read_text(encoding="utf-8")
             parts = content.split("---", 2)
             fm = yaml.safe_load(parts[1])
-            assert "mode" in fm, f"{f} frontmatter missing 'mode'"
-            # mode should be speckit.<stem>
-            skill_dir_name = f.parent.name
-            stem = skill_dir_name.removeprefix("speckit-")
-            assert fm["mode"] == f"speckit.{stem}"
+            assert "mode" not in fm, f"{f} frontmatter must not contain unsupported 'mode' field"
 
     def test_skills_hook_sections_explain_dotted_command_conversion(self, tmp_path):
         """Generated skills with hook sections should include shared hook guidance."""
@@ -621,7 +622,7 @@ class TestCopilotSkillsMode:
             result = CliRunner().invoke(app, [
                 "init", "--here", "--integration", "copilot",
                 "--integration-options", "--skills",
-                "--script", "sh", "--no-git",
+                "--script", "sh",
             ], catch_exceptions=False)
         finally:
             os.chdir(old_cwd)
@@ -647,26 +648,16 @@ class TestCopilotSkillsMode:
             result = CliRunner().invoke(app, [
                 "init", "--here", "--integration", "copilot",
                 "--integration-options", "--skills",
-                "--script", "sh", "--no-git",
+                "--script", "sh",
             ], catch_exceptions=False)
         finally:
             os.chdir(old_cwd)
         assert result.exit_code == 0, f"init failed: {result.output}"
-        actual = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file())
-        # Dynamically find all skills and their files in templates/skills/ recursively
-        skills_dir = self._proj_root / "templates" / "skills"
-        template_skills = []
-        if skills_dir.is_dir():
-            for p in skills_dir.rglob("*"):
-                if p.is_file():
-                    rel_p = p.relative_to(skills_dir).as_posix()
-                    template_skills.append(f".github/skills/{rel_p}")
-
+        actual = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file() and ".git" not in p.parts)
         expected = sorted([
             # Skill files (core + extension-installed agent-context command)
-            *template_skills,
+            *[f".github/skills/speckit-{cmd}/SKILL.md" for cmd in self._SKILL_COMMANDS],
             ".github/skills/speckit-agent-context-update/SKILL.md",
-            ".github/skills/speckit-decompose/SKILL.md",
             # Context file
             ".github/copilot-instructions.md",
             # Bundled agent-context extension
@@ -699,7 +690,6 @@ class TestCopilotSkillsMode:
             # Bundled workflow
             ".specify/workflows/speckit/workflow.yml",
             ".specify/workflows/workflow-registry.json",
-            *_expected_guard_files("skills"),
         ])
         assert actual == expected, (
             f"Missing: {sorted(set(expected) - set(actual))}\n"
@@ -785,7 +775,6 @@ class TestCopilotSkillsMode:
             result = CliRunner().invoke(app, [
                 "init", "--here", "--integration", "copilot",
                 "--integration-options", "--skills",
-                "--script", "sh", "--no-git",
             ], catch_exceptions=False)
         finally:
             os.chdir(old_cwd)

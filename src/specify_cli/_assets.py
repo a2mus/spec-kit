@@ -119,8 +119,6 @@ def _locate_guard_rules() -> Path | None:
         return candidate
 
     return None
-
-
 def get_speckit_version() -> str:
     """Get current spec-kit version."""
     try:

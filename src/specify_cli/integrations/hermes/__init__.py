@@ -7,7 +7,7 @@ AI agent framework by Nous Research.  It stores skills in
 Usage::
 
     specify init my-project --integration hermes
-    specify init --here --ai hermes
+    specify init --here --integration hermes
 """
 
 from __future__ import annotations
@@ -58,10 +58,6 @@ class HermesIntegration(SkillsIntegration):
     def _hermes_home_skills_dir() -> Path:
         """Return ``~/.hermes/skills/`` — the global skills directory."""
         return Path.home() / ".hermes" / "skills"
-
-    def commands_dest(self, project_root: Path) -> Path:
-        """For Hermes, skills live globally under ~/.hermes/skills/."""
-        return self._hermes_home_skills_dir()
 
     # -- Options -----------------------------------------------------------
 

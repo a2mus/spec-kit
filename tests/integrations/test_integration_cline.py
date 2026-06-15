@@ -139,7 +139,6 @@ class TestClineIntegration(MarkdownIntegrationTests):
                     self.KEY,
                     "--script",
                     "sh",
-                    "--no-git",
                     "--ignore-agent-tools",
                 ],
                 catch_exceptions=False,
@@ -219,8 +218,5 @@ class TestClineIntegration(MarkdownIntegrationTests):
         # Agent context file (if set)
         if i.context_file:
             files.append(i.context_file)
-
-        # Guard rules
-        files.extend(self._expected_guard_files())
 
         return sorted(files)

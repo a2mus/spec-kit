@@ -58,10 +58,13 @@ def check_tool(tool: str, tracker=None) -> bool:
                 tracker.complete(tool, "available")
             return True
 
+    # Per-integration executable resolution.
     if tool == "kiro-cli":
         # Kiro currently supports both executable names. Prefer kiro-cli and
         # accept kiro as a compatibility fallback.
         found = shutil.which("kiro-cli") is not None or shutil.which("kiro") is not None
+    elif tool == "rovodev":
+        found = shutil.which("acli") is not None
     else:
         found = shutil.which(tool) is not None
 
@@ -118,7 +121,6 @@ def init_git_repo(project_path: Path, quiet: bool = False) -> tuple[bool, str | 
         return False, error_msg
     finally:
         os.chdir(original_cwd)
-
 
 def handle_vscode_settings(sub_item, dest_file, rel_path, verbose=False, tracker=None) -> None:
     """Handle merging or copying of .vscode/settings.json files.

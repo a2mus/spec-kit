@@ -70,6 +70,8 @@ Use the existing entries as the format template. Required fields:
     "documentation": "<documentation>",
     "changelog": "<changelog>",
     "license": "<license>",
+    "category": "<category>",
+    "effect": "<effect>",
     "requires": {
       "speckit_version": "<speckit_version>"
     },
@@ -87,6 +89,8 @@ Use the existing entries as the format template. Required fields:
 }
 ```
 
+**Category** — free-form string; common values: `docs`, `code`, `process`, `integration`, `visibility`
+**Effect** — one of: `read-only`, `read-write`
 If the extension has optional tool dependencies, add a `"tools"` array inside `"requires"`:
 
 ```json
@@ -113,8 +117,8 @@ Determine the category and effect from the extension's behavior:
 | <Name> | <Description> | `<category>` | <Effect> | [<repo-name>](<repository-url>) |
 ```
 
-**Category** — one of: `docs`, `code`, `process`, `integration`, `visibility`
-**Effect** — `Read-only` (produces reports only) or `Read+Write` (modifies project files)
+**Category** — free-form; common values: `docs`, `code`, `process`, `integration`, `visibility`
+**Effect** — write canonical values `read-only` or `read-write` in `extension.yml` and `catalog.community.json`; use `Read-only`/`Read+Write` only for the docs table display
 
 ### 6. Commit, push, and open PR
 

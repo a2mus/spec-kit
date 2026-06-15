@@ -2,6 +2,105 @@
 
 <!-- insert new changelog below this comment -->
 
+## [0.10.2] - 2026-06-11
+
+### Changed
+
+- Add Research Harness extension to community catalog (#2935)
+- Add Coding Standards Drift Control extension to community catalog (#2934)
+- Add Spec Trace extension to community catalog (#2527)
+- fix(extensions): preserve argument-hint in extension Claude SKILL.md (#2916)
+- fix(presets): harden preset URL installs against unsafe redirects (#2911)
+- fix: skip recovered files during refresh_managed overwrite check (#2918) (#2919)
+- Update multi-model-review extension to v0.1.1 (#2900)
+- feat: add category and effect as first-class fields in extension schema (#2899)
+- chore(catalog): add Jira Integration (Sync Engine) extension (#2895)
+- chore: release 0.10.1, begin 0.10.2.dev0 development (#2910)
+
+## [0.10.1] - 2026-06-09
+
+### Changed
+
+- Update DocGuard — CDD Enforcement extension to v0.25.1 (#2909)
+- Update a11y-governance preset to v0.3.0 (#2867)
+- docs: document spec persistence models (#2856)
+- chore(catalog): bump Linear Integration to v0.3.0 (repo renamed to spec-kit-linear-sync) (#2893)
+- chore: update DocGuard extension to v0.25.0 (#2707)
+- chore: remove unused open_github_url/_StripAuthOnRedirect from _github_http.py (#2883)
+- fix(catalogs): validate extension and preset catalog payload shape (#2621)
+- feat(integration): add status reporting (#2674)
+- chore: release 0.10.0, begin 0.10.1.dev0 development (#2904)
+
+## [0.10.0] - 2026-06-09
+
+### Changed
+
+- feat: make git extension opt-in and remove --no-git at v0.10.0 (#2873)
+- [Preset] UpdateFiction book writing v1.9.0 - Illustration support (#2821)
+- test(workflows): cover executable override fallback preflight (#2843)
+- Add GitHub Copilot CLI guidance to readme (#2891)
+- Update Security Review extension to v1.5.3 (#2898)
+- Update Architecture Guard extension to v1.8.17 (#2897)
+- feat(extensions): per-event hook lists with priority ordering (#2798)
+- feat!: remove legacy --ai, --ai-commands-dir, and --ai-skills flags (0.10.0) (#2872)
+- chore: release 0.9.5, begin 0.9.6.dev0 development (#2875)
+
+## [0.9.5] - 2026-06-05
+
+### Changed
+
+- feat(extensions): add bundled bug triage workflow extension (#2871)
+- fix: resolve GitHub release asset API URL for private repo preset and workflow downloads (#2855)
+- chore(deps): bump github/gh-aw-actions from 0.77.0 to 0.78.1 (#2860)
+- chore(deps): bump actions/checkout from 6.0.2 to 6.0.3 (#2859)
+- chore(deps): bump astral-sh/setup-uv from 8.1.0 to 8.2.0 (#2858)
+- chore(deps): bump github/codeql-action from 4.36.0 to 4.36.2 (#2857)
+- fix(workflows): render gate show_file contents in the interactive prompt (#2810)
+- feat: add support for rovodev (#2539)
+- chore: release 0.9.4, begin 0.9.5.dev0 development (#2853)
+
+## [0.9.4] - 2026-06-04
+
+### Changed
+
+- feat(workflows): add JSON output for workflow run resume and status (#2814)
+- Update workflow-preset community catalog to v1.3.2 (#2841)
+- fix: recover active skills registration for extensions (#2803)
+- fix(cursor-agent): enable headless CLI dispatch end-to-end (-p --trust --approve-mcps --force + Windows .cmd shim resolution) (#2631)
+- Update Superpowers Implementation Bridge extension to v1.0.2 (#2852)
+- docs(agents): add PR review response guidance to AGENTS.md (#2850)
+- Allow `specify workflow run` to execute YAML files without a project (#2825)
+- feat(extensions): add --force flag to extension add for overwrite reinstall (#2530)
+- chore: release 0.9.3, begin 0.9.4.dev0 development (#2836)
+
+## [0.9.3] - 2026-06-03
+
+### Changed
+
+- fix: render script command hints with active agent separator (#2649)
+- chore(tests): fix ruff lint violations in tests/ (#2827)
+- fix(workflows): validate run_id in RunState.load before touching the … (#2813)
+- feat(cli): implement specify self upgrade (#2475)
+- feat(workflows): allow resume to accept updated workflow inputs (#2815)
+- catalog: rename "superpowers-bridge" to "superspec" (v1.0.1) (#2772)
+- fix(cli): force UTF-8 stdout/stderr on Windows to prevent UnicodeEncodeError (#2817)
+- fix(plan): clarify quickstart validation guide scope (#2805)
+- chore: release 0.9.2, begin 0.9.3.dev0 development (#2823)
+
+## [0.9.2] - 2026-06-02
+
+### Changed
+
+- Update agent parity governance preset catalog entry (#2777)
+- fix: resolve GitHub release asset API URL for private repo extension downloads (#2792)
+- fix: remove unsupported mode: frontmatter from Copilot skills mode (fixes #2799) (#2819)
+- refactor(integrations): co-locate integration commands in integrations/ domain dir (PR-5/8) (#2720)
+- Update Product Forge extension to v1.6.0 (#2820)
+- feat(workflows): add continue_on_error step field for non-halting failures (#2663)
+- chore: add .editorconfig for consistent code formatting (#2366)
+- fix(shared-infra): record skipped files in speckit.manifest.json (#2483)
+- chore: release 0.9.1, begin 0.9.2.dev0 development (#2818)
+
 ## [0.9.1] - 2026-06-02
 
 ### Changed
@@ -81,7 +180,7 @@
 - fix: promote post-execution hook dispatch to H2 with directive language (#2713)
 - Add Token Budget extension to community catalog (#2712)
 - fix: create skills directory on demand during extension/preset install (#2711)
-- fix: PS 5.1 compat ΓÇö replace non-ASCII chars in shipped PowerShell scripts (#2709)
+- fix: PS 5.1 compat — replace non-ASCII chars in shipped PowerShell scripts (#2709)
 - docs: update security-governance preset to v0.3.0 (#2676)
 - Update README.md (#2675)
 - chore: release 0.8.14, begin 0.8.15.dev0 development (#2706)
@@ -174,7 +273,7 @@
 - docs: clarify CLI upgrade discovery (#2519)
 - fix: make template metadata line breaks markdownlint-safe (#2505)
 - refactor(catalogs): extract integration catalog config loading (#2497)
-- test(presets): silence expected UserWarnings in self-test compositionΓÇª (#2373)
+- test(presets): silence expected UserWarnings in self-test composition… (#2373)
 - chore: release 0.8.8, begin 0.8.9.dev0 development (#2516)
 
 ## [0.8.8] - 2026-05-11
@@ -194,7 +293,6 @@
 - feat(catalog): add API Evolve (api-evolve) community extension (#2479)
 - feat: Config-driven opt-in authentication registry with multi-platform support (#2393)
 - chore: release 0.8.7, begin 0.8.8.dev0 development (#2480)
-
 
 ## [0.8.7] - 2026-05-07
 
@@ -728,70 +826,6 @@
 - Fix version command in documentation (#1685)
 - Add Cleanup Extension to README (#1678)
 - Add retrospective extension to community catalog (#1681)
-
-## [0.2.0] - 2026-03-25
-
-### Added
-
-- **`specify update` command**: Smart upstream sync for forks
-  - Configures an `upstream` git remote pointing to `https://github.com/github/spec-kit.git`
-  - Fetches and merges upstream changes while preserving local customizations
-  - `--dry-run` flag to preview incoming commits before applying
-  - `--reset-upstream` flag to update the remote URL if it changes
-  - Clear conflict reporting with actionable resolution instructions
-  - Shows list of updated files after a successful merge
-
-- **Brainstorm-First Workflow**: Documented the interactive greenfield development path
-  - Added complete guide in `spec-driven.md`: `brainstorm` → `uidesign` → `initiate` → `specify`
-  - Comparison table between feature-first and brainstorm-first workflows
-  - Step-by-step walkthrough with use-cases for each approach
-
-### Changed
-
-- `spec-driven.md` now positions the brainstorm-first workflow as a primary entry point for new projects
-
-### Removed
-
-- Deleted redundant root-level files (`smart-push.md`, `speckit-progress.md`); canonical versions remain in `.agent/workflows/`
-- Removed temporary `.tmp_ecc/` directory
-
-## [0.1.9] - 2026-03-02
-
-### Added
-
-- **ECC Core Integration**: Bundled ECC tools directly into Spec Kit via `--ai-skills`
-  - Added new `install_ecc_skills()` to dynamically install `templates/skills/`
-  - Added language-specific verification skills (Python, TypeScript, Go, Java, Rust, Ruby)
-  - Exposed 6 core ECC commands (`tdd`, `code-review`, `build-fix`, `verify`, `refactor-clean`, `security-scan`)
-  - Enhanced `agent-file-template.md` with explicit ECC guidelines
-
-## [0.3.0] - 2026-03-02
-
-### Added
-
-- **Antigravity Workflow Integration**: Added 11 workflow files to `.agent/workflows/` for use as Antigravity slash commands
-  - **Spec-Kit Core Workflows** (9): `/speckit-analyze`, `/speckit-checklist`, `/speckit-clarify`, `/speckit-constitution`, `/speckit-implement`, `/speckit-plan`, `/speckit-progress`, `/speckit-specify`, `/speckit-tasks`
-  - **General Workflows** (2): `/smart-push` (intelligent git commits), `/plan-with-opus` (Architect-Builder planning model)
-  - `speckit-implement` generalized to be platform-agnostic (removed Android-specific patterns)
-  - `plan-with-opus` adapted to reference `/speckit-implement` for execution
-- Added `progress` entry to `SKILL_DESCRIPTIONS` for AI skill metadata
-
-## [0.2.1] - 2026-02-27
-
-### Added
-
-- New `/speckit.progress` command for checking spec progression and presenting status reports with accomplished/in-progress tasks, metrics, and next steps
-
-## [0.2.0] - 2026-02-25
-
-### Added
-
-- **SDD Initiation Commands**: Three new commands for personalized Software-Driven Development initiation workflow
-  - **`brainstorm`**: Interactive product brainstorming and specification through guided Q&A. Generates `product-spec.md` with technology recommendations, architecture decisions, feature prioritization, and functional requirements
-  - **`uidesign`**: UI design specification workflow with AI-generated mockup prompts for tools like Google Stitch, v0, Bolt. Iterates on mockups with the developer and produces `ui-spec.md` with design system, component library, screen specs, and responsive strategy
-  - **`initiate`**: Generates project constitution from both `product-spec.md` and `ui-spec.md`, extracting best practices, coding standards, architecture principles, and development guidelines into `constitution.md`
-- All three commands output to `.specify/memory/` and chain together via handoffs (`brainstorm` → `uidesign` → `initiate`)
-- Added `SKILL_DESCRIPTIONS` entries for all three new commands
 
 ## [0.1.6] - 2026-02-23
 

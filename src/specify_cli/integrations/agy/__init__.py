@@ -93,6 +93,54 @@ class AgyIntegration(SkillsIntegration):
         # agy does not support --model or JSON output; both params are ignored
         return [self._resolve_executable(), "--print", prompt]
 
+    @staticmethod
+    def _inject_hook_command_note(content: str) -> str:
+        """Insert a dot-to-hyphen note before each hook output instruction.
+
+        Targets the line ``- For each executable hook, output the following``
+        and inserts the note on the line before it, matching its indentation.
+        Skips if the note is already present.
+        """
+        if "replace dots" in content:
+            return content
+
+        def repl(m: re.Match[str]) -> str:
+            indent = m.group(1)
+            instruction = m.group(2)
+            # ``eol`` is empty when the regex matched via ``$`` because the
+            # instruction was the final line of a file with no trailing
+            # newline. Default to ``\n`` so the note never collapses onto
+            # the same line as the instruction.
+            eol = m.group(3) or "\n"
+            return (
+                indent
+                + _HOOK_COMMAND_NOTE.rstrip("\n")
+                + eol
+                + indent
+                + instruction
+                + eol
+            )
+
+        return re.sub(
+            r"(?m)^(\s*)(- For each executable hook, output the following[^\r\n]*)(\r\n|\n|$)",
+            repl,
+            content,
+        )
+
+    def post_process_skill_content(self, content: str) -> str:
+        """Inject the dot-to-hyphen hook command note."""
+        return self._inject_hook_command_note(content)
+
+    def build_exec_args(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+        output_json: bool = True,
+    ) -> list[str] | None:
+        # agy does not support --model or JSON output; both params are ignored
+        return [self._resolve_executable(), "--print", prompt]
+
     def setup(
         self,
         project_root: Path,
