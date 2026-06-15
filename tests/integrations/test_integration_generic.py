@@ -300,17 +300,13 @@ class TestGenericIntegration:
             p.relative_to(project).as_posix()
             for p in project.rglob("*") if p.is_file() and ".git" not in p.parts
         )
-        expected = sorted([
+        i = get_integration("generic")
+        expected_commands = [
+            f".myagent/commands/speckit.{t.stem}.md"
+            for t in i.list_command_templates()
+        ]
+        expected = sorted(expected_commands + [
             "AGENTS.md",
-            ".myagent/commands/speckit.analyze.md",
-            ".myagent/commands/speckit.checklist.md",
-            ".myagent/commands/speckit.clarify.md",
-            ".myagent/commands/speckit.constitution.md",
-            ".myagent/commands/speckit.implement.md",
-            ".myagent/commands/speckit.plan.md",
-            ".myagent/commands/speckit.specify.md",
-            ".myagent/commands/speckit.tasks.md",
-            ".myagent/commands/speckit.taskstoissues.md",
             ".specify/extensions.yml",
             ".specify/extensions/.registry",
             ".specify/extensions/agent-context/README.md",
@@ -364,17 +360,13 @@ class TestGenericIntegration:
             p.relative_to(project).as_posix()
             for p in project.rglob("*") if p.is_file() and ".git" not in p.parts
         )
-        expected = sorted([
+        i = get_integration("generic")
+        expected_commands = [
+            f".myagent/commands/speckit.{t.stem}.md"
+            for t in i.list_command_templates()
+        ]
+        expected = sorted(expected_commands + [
             "AGENTS.md",
-            ".myagent/commands/speckit.analyze.md",
-            ".myagent/commands/speckit.checklist.md",
-            ".myagent/commands/speckit.clarify.md",
-            ".myagent/commands/speckit.constitution.md",
-            ".myagent/commands/speckit.implement.md",
-            ".myagent/commands/speckit.plan.md",
-            ".myagent/commands/speckit.specify.md",
-            ".myagent/commands/speckit.tasks.md",
-            ".myagent/commands/speckit.taskstoissues.md",
             ".specify/extensions.yml",
             ".specify/extensions/.registry",
             ".specify/extensions/agent-context/README.md",

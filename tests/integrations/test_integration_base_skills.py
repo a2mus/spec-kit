@@ -18,6 +18,9 @@ from specify_cli.integrations.manifest import IntegrationManifest
 
 
 class SkillsIntegrationTests:
+
+    import pathlib as _pathlib
+    _proj_root = _pathlib.Path(__file__).resolve().parents[2]
     """Mixin — set class-level constants and inherit these tests.
 
     Required class attrs on subclass::
@@ -99,10 +102,7 @@ class SkillsIntegrationTests:
         created = i.setup(tmp_path, m)
         skill_files = [f for f in created if "scripts" not in f.parts]
 
-        expected_commands = {
-            "analyze", "clarify", "constitution", "implement",
-            "plan", "checklist", "specify", "tasks", "taskstoissues",
-        }
+        expected_commands = {t.stem for t in i.list_command_templates()}
 
         # Derive command names from the skill directory names
         actual_commands = set()
@@ -312,7 +312,7 @@ class SkillsIntegrationTests:
             assert "<!-- SPECKIT END -->" not in remaining
             assert "# My Rules" in remaining
 
-    # -- CLI integration flag -------------------------------------------------
+    # -- CLI auto-promote -------------------------------------------------
 
     def test_integration_flag_auto_promotes(self, tmp_path):
         from typer.testing import CliRunner
@@ -392,10 +392,58 @@ class SkillsIntegrationTests:
 
     # -- Complete file inventory ------------------------------------------
 
-    _SKILL_COMMANDS = [
-        "analyze", "clarify", "constitution", "implement",
-        "plan", "checklist", "specify", "tasks", "taskstoissues",
-    ]
+    @property
+    def _SKILL_COMMANDS(self) -> list[str]:
+        i = get_integration(self.KEY)
+        return [t.stem for t in i.list_command_templates()]
+
+    def _expected_guard_files(self) -> list[str]:
+        import pathlib as _pathlib
+        proj_root = _pathlib.Path(__file__).resolve().parents[2]
+        guards_src = proj_root / "templates" / "rules" / "guards"
+        i = get_integration(self.KEY)
+        rules_dest = i.guard_rules_dest(proj_root)
+        files = []
+        if not guards_src.is_dir():
+            return files
+        if rules_dest is not None:
+            folder = i.config.get("folder", "")
+            rules_subdir = getattr(i, "rules_subdir", "rules")
+            prefix = (folder.rstrip("/") + "/" + rules_subdir).strip("/")
+            prefix = prefix + "/" if prefix else ""
+            for guard_dir in sorted(guards_src.iterdir()):
+                if not guard_dir.is_dir():
+                    continue
+                rule_file = guard_dir / "rule.md"
+                if not rule_file.is_file():
+                    continue
+                guard_name = guard_dir.name
+                dest_name = f"guard-{guard_name.replace('-guard', '')}"
+                ext = ".mdc" if self.KEY == "cursor-agent" else ".md"
+                files.append(f"{prefix}{dest_name}{ext}")
+                refs_src = guard_dir / "references"
+                if refs_src.is_dir():
+                    for ref in sorted(refs_src.iterdir()):
+                        if ref.is_file():
+                            files.append(f"{prefix}{dest_name}-references/{ref.name}")
+        else:
+            folder = i.config.get("folder", "")
+            subdir = i.config.get("commands_subdir", "commands")
+            prefix = folder.rstrip("/") + "/" + subdir
+            for guard_dir in sorted(guards_src.iterdir()):
+                if not guard_dir.is_dir():
+                    continue
+                rule_file = guard_dir / "rule.md"
+                if not rule_file.is_file():
+                    continue
+                guard_name = guard_dir.name
+                files.append(f"{prefix}/speckit-{guard_name}/SKILL.md")
+                refs_src = guard_dir / "references"
+                if refs_src.is_dir():
+                    for ref in sorted(refs_src.iterdir()):
+                        if ref.is_file():
+                            files.append(f"{prefix}/speckit-{guard_name}/references/{ref.name}")
+        return files
 
     def _expected_files(self, script_variant: str) -> list[str]:
         """Build the full expected file list for a given script variant."""
@@ -403,9 +451,13 @@ class SkillsIntegrationTests:
         skills_prefix = i.config["folder"].rstrip("/") + "/" + i.config.get("commands_subdir", "skills")
 
         files = []
-        # Skill files (core commands)
-        for cmd in self._SKILL_COMMANDS:
-            files.append(f"{skills_prefix}/speckit-{cmd}/SKILL.md")
+        # Skill files (from templates/skills/ directory recursively)
+        skills_dir = self._proj_root / "templates" / "skills"
+        if skills_dir.is_dir():
+            for p in skills_dir.rglob("*"):
+                if p.is_file():
+                    rel_p = p.relative_to(skills_dir).as_posix()
+                    files.append(f"{skills_prefix}/{rel_p}")
         # Extension-installed skill (agent-context)
         files.append(f"{skills_prefix}/speckit-agent-context-update/SKILL.md")
         # Integration metadata
@@ -458,7 +510,16 @@ class SkillsIntegrationTests:
         # Agent context file (if set)
         if i.context_file:
             files.append(i.context_file)
-        return sorted(files)
+
+        # Converted command templates
+        for stem in self._SKILL_COMMANDS:
+            skill_name = f"speckit-{stem.replace('.', '-')}"
+            files.append(f"{skills_prefix}/{skill_name}/SKILL.md")
+
+        # Guard rules
+        files.extend(self._expected_guard_files())
+
+        return sorted(list(set(files)))
 
     def test_complete_file_inventory_sh(self, tmp_path):
         """Every file produced by specify init --integration <key> --script sh."""
@@ -471,8 +532,8 @@ class SkillsIntegrationTests:
         try:
             os.chdir(project)
             result = CliRunner().invoke(app, [
-                "init", "--here", "--integration", self.KEY, "--script", "sh",
-                "--ignore-agent-tools",
+                "init", "--here", "--integration", self.KEY,
+                "--script", "sh", "--ignore-agent-tools",
             ], catch_exceptions=False)
         finally:
             os.chdir(old_cwd)
@@ -498,8 +559,8 @@ class SkillsIntegrationTests:
         try:
             os.chdir(project)
             result = CliRunner().invoke(app, [
-                "init", "--here", "--integration", self.KEY, "--script", "ps",
-                "--ignore-agent-tools",
+                "init", "--here", "--integration", self.KEY,
+                "--script", "ps", "--ignore-agent-tools",
             ], catch_exceptions=False)
         finally:
             os.chdir(old_cwd)

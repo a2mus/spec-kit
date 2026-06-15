@@ -143,7 +143,7 @@ def test_init_flow_installs_guard_rules_windsurf(tmp_path):
         os.chdir(project)
         runner = CliRunner()
         result = runner.invoke(app, [
-            "init", "--here", "--integration", "windsurf", "--script", "sh", "--no-git",
+            "init", "--here", "--integration", "windsurf", "--script", "sh",
             "--ignore-agent-tools",
         ], catch_exceptions=False)
     finally:
@@ -169,7 +169,7 @@ def test_init_flow_installs_guard_rules_claude(tmp_path):
         os.chdir(project)
         runner = CliRunner()
         result = runner.invoke(app, [
-            "init", "--here", "--integration", "claude", "--script", "sh", "--no-git",
+            "init", "--here", "--integration", "claude", "--script", "sh",
             "--ignore-agent-tools",
         ], catch_exceptions=False)
     finally:

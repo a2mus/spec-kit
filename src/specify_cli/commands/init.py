@@ -20,6 +20,8 @@ from .._assets import (
     _locate_bundled_extension,
     _locate_bundled_preset,
     _locate_bundled_workflow,
+    _locate_core_pack,
+    _repo_root,
     get_speckit_version,
 )
 from .._console import StepTracker, console, select_with_arrows, show_banner
@@ -63,6 +65,70 @@ def ensure_constitution_from_template(
             tracker.error("constitution", str(e))
         else:
             console.print(f"[yellow]Warning: Could not initialize constitution: {e}[/yellow]")
+
+
+def install_ecc_skills(
+    project_path: Path, selected_ai: str, tracker: StepTracker | None = None
+) -> bool:
+    """Install ECC skills from templates/skills/ to the agent's skills directory.
+
+    Installation is additive — existing files are never removed.
+    """
+    core = _locate_core_pack()
+    if core is not None:
+        skills_source_dir = core / "skills"
+    else:
+        skills_source_dir = _repo_root() / "templates" / "skills"
+
+    if not skills_source_dir.exists() or not any(skills_source_dir.iterdir()):
+        if tracker:
+            tracker.skip("ecc-skills", "no ECC skills found in templates")
+        return False
+
+    if selected_ai == "hermes":
+        skills_dir = Path.home() / ".hermes" / "skills"
+    else:
+        from .. import _get_skills_dir
+        skills_dir = _get_skills_dir(project_path, selected_ai)
+    skills_dir.mkdir(parents=True, exist_ok=True)
+
+    installed_count = 0
+    skipped_count = 0
+
+    for skill_path in skills_source_dir.iterdir():
+        if not skill_path.is_dir():
+            continue
+
+        skill_name = skill_path.name
+        dest_dir = skills_dir / skill_name
+
+        if dest_dir.exists():
+            skipped_count += 1
+            continue
+
+        try:
+            shutil.copytree(skill_path, dest_dir)
+            installed_count += 1
+        except Exception as e:
+            console.print(f"[yellow]Warning: Failed to install ECC skill {skill_name}: {e}[/yellow]")
+            continue
+
+    if tracker:
+        if installed_count > 0 and skipped_count > 0:
+            tracker.complete("ecc-skills", f"{installed_count} new + {skipped_count} existing ECC skills")
+        elif installed_count > 0:
+            tracker.complete("ecc-skills", f"{installed_count} ECC skills installed")
+        elif skipped_count > 0:
+            tracker.complete("ecc-skills", f"{skipped_count} ECC skills already present")
+        else:
+            tracker.error("ecc-skills", "no ECC skills installed")
+    else:
+        if installed_count > 0:
+            console.print(f"[green]✓[/green] Installed {installed_count} ECC skills to {skills_dir.relative_to(project_path)}/")
+        elif skipped_count > 0:
+            console.print(f"[green]✓[/green] {skipped_count} ECC skills already present")
+
+    return installed_count > 0 or skipped_count > 0
 
 
 def register(app: typer.Typer) -> None:
@@ -115,6 +181,7 @@ def register(app: typer.Typer) -> None:
         """
         # Lazy imports to avoid circular dependency — __init__.py imports this module
         from .. import (
+            _get_skills_dir,
             _install_shared_infra_or_exit,
             _print_cli_warning,
             _update_agent_context_config_file,
@@ -290,6 +357,7 @@ def register(app: typer.Typer) -> None:
             ("constitution", "Constitution setup"),
             ("workflow", "Install bundled workflow"),
             ("agent-context", "Install agent-context extension"),
+            ("ecc-skills", "Install ECC skills"),
             ("guard-rules", "Install guard rules"),
             ("final", "Finalize"),
         ]:
@@ -430,6 +498,12 @@ def register(app: typer.Typer) -> None:
                     )
 
                 ensure_executable_scripts(project_path, tracker=tracker)
+
+                if init_opts.get("ai_skills"):
+                    tracker.start("ecc-skills")
+                    install_ecc_skills(project_path, selected_ai, tracker=tracker)
+                else:
+                    tracker.skip("ecc-skills", "non-skills integration")
 
                 tracker.start("guard-rules")
                 try:
