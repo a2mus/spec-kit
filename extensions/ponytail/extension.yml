@@ -1,0 +1,59 @@
+schema_version: "1.0"
+
+extension:
+  id: ponytail
+  name: "Ponytail — Anti-Over-Engineering"
+  version: "1.0.0"
+  description: "Forces the laziest solution that actually works. Reviews, audits, and tracks over-engineering in specs and code."
+  author: a2mus
+  repository: https://github.com/a2mus/spec-kit
+  license: MIT
+  homepage: https://github.com/DietrichGebert/ponytail
+
+requires:
+  speckit_version: ">=0.8.0"
+
+provides:
+  commands:
+    - name: speckit.ponytail.review
+      file: commands/speckit.ponytail.review.md
+      description: "Review a diff for over-engineering: find what to delete, simplify, or replace with stdlib/native"
+
+    - name: speckit.ponytail.audit
+      file: commands/speckit.ponytail.audit.md
+      description: "Whole-repo audit for over-engineering: ranked list of what to cut, simplify, or replace"
+
+    - name: speckit.ponytail.debt
+      file: commands/speckit.ponytail.debt.md
+      description: "Harvest every ponytail: comment into a debt ledger so deferred shortcuts get tracked"
+
+  config:
+    - name: "ponytail-config.yml"
+      template: "config-template.yml"
+      description: "Ponytail intensity level and hook automation"
+      required: false
+
+hooks:
+  after_implement:
+    command: speckit.ponytail.review
+    optional: true
+    prompt: "Run over-engineering review on the implementation diff?"
+    description: "Reviews the implementation for unnecessary complexity"
+
+  after_specify:
+    command: speckit.ponytail.review
+    optional: true
+    prompt: "Run YAGNI check on the generated spec?"
+    description: "Checks the specification for speculative features and over-scoping"
+
+tags:
+  - "ponytail"
+  - "anti-over-engineering"
+  - "yagni"
+  - "code-review"
+  - "quality"
+
+config:
+  defaults:
+    intensity: full
+    auto_review: true
