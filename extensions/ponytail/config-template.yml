@@ -1,0 +1,13 @@
+# Ponytail Extension Configuration
+# Copied to .specify/extensions/ponytail/ponytail-config.yml on install
+
+# Intensity level: "lite", "full" (default), or "ultra"
+# - lite:  Build what's asked, name the lazier alternative in one line. User picks.
+# - full:  The ladder enforced. Stdlib and native first. Shortest diff, shortest explanation.
+# - ultra: YAGNI extremist. Deletion before addition. Challenge the requirement itself.
+intensity: full
+
+# Auto-run over-engineering review after implementation
+# When true, the after_implement hook runs automatically (no prompt).
+# When false, the user is prompted before the review runs.
+auto_review: true
