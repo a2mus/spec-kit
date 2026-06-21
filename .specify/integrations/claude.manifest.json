@@ -1,7 +1,7 @@
 {
   "integration": "claude",
   "version": "0.10.3.dev0",
-  "installed_at": "2026-06-21T12:56:58.458725+00:00",
+  "installed_at": "2026-06-21T13:04:00.471679+00:00",
   "files": {
     ".claude/skills/speckit-analyze/SKILL.md": "adb9c4baed1d0e27cebd08e506a7247c1357ee721b6ea340201553d5792e6c8a",
     ".claude/skills/speckit-clarify/SKILL.md": "fd720c2b468f10f89cf4b6dfcff876e735e557cde5f9bcb2ec1fc7079c19051c",
@@ -28,25 +28,6 @@
     ".claude/skills/speckit-tdd/SKILL.md": "313372baecc47392dfdf357e1a6e0872ae574e7a11845c5b250c3bc863f775b2",
     ".claude/skills/speckit-uidesign/SKILL.md": "cf50e9f2a8c33fcb9422e8e33aff898bbf5c39aaa02aed03270acc4d1ca31417",
     ".claude/skills/speckit-update-upstream/SKILL.md": "011b166f4e7c009957529c5798e31c90aea7812efa72a38797ee0d86c2314206",
-    ".claude/skills/speckit-verify/SKILL.md": "98fc1554286900808410f8904f709d8702d9012dc4a5b819d5dc7770211246e2",
-    ".claude/skills/speckit-clean-code-guard/SKILL.md": "46b80321dae4021c213b1b715e1df65cbb65aad5f686f248d709484caa3d8d68",
-    ".claude/skills/speckit-clean-code-guard/references/ai-failure-modes.md": "02be4180defd7c17da4b2b603e1e4edb0642ed244fd4645e702894cdacfd9a5d",
-    ".claude/skills/speckit-clean-code-guard/references/comments-and-formatting.md": "e04f4b5c44670db584acd67d46de7ec0e4314cf19a6b073df20244499c5493ae",
-    ".claude/skills/speckit-clean-code-guard/references/dry-kiss-yagni.md": "012ae7230d29471f5894f942456a7054208d79f23a167a6c5241b3ca4deb30a2",
-    ".claude/skills/speckit-clean-code-guard/references/naming-and-functions.md": "5ee0048f6b4172bc1a8709767ad0a408f6528eeea9801611f22df39615a24776",
-    ".claude/skills/speckit-clean-code-guard/references/review-checklist.md": "514d41a23994de5ecf74725d89a4d6d40d763ddb62b2ab1b3a4c0951402a7400",
-    ".claude/skills/speckit-clean-code-guard/references/solid.md": "c2bb694b1e651c2f2b89ecbabeac62bbb22a481d20d83e24ed265f42e73c4336",
-    ".claude/skills/speckit-clean-code-guard/references/sources.md": "60ea884a07427687ee9f4e62b8ec619887140117fde126bf5dc1445f6dbcb544",
-    ".claude/skills/speckit-docs-guard/SKILL.md": "a5b668e7dbbdb12a84f6085a86da5a323da894ad314e767c481c8522a159286a",
-    ".claude/skills/speckit-docs-guard/references/code-samples.md": "161920807be9dec9041efc0510f60994775a52a1a829a1a4637581fa34e39ce4",
-    ".claude/skills/speckit-docs-guard/references/docstrings.md": "fd2546a34d900fe37f3c5d6019646af2f1bfd27dd716d9b0ac1c6de07b7dbc6c",
-    ".claude/skills/speckit-docs-guard/references/review-checklist.md": "5f2a0448633658524cea474a48a122df1f85b71d691b85019b7dba3a96b4ec85",
-    ".claude/skills/speckit-docs-guard/references/sources.md": "a798f9336080cde43f814e62bdbfcf78354b81080809f2d24260fdf8706be618",
-    ".claude/skills/speckit-docs-guard/references/verification.md": "f68314292d20cefb33f26d8f1492f26d645dd94b9049df8e375729e3522ac794",
-    ".claude/skills/speckit-test-guard/SKILL.md": "ea37ab3604224cfcbc44c459d815c43169a4ac258040cab48aee2b12f9767212",
-    ".claude/skills/speckit-test-guard/references/jest.md": "ebc8a3c1fcc131513a997f2e00c2979f1add50b4b6b510a1edc27dbbc55f3229",
-    ".claude/skills/speckit-test-guard/references/llm-app-testing.md": "13a69b64a07b5f6c593476f632477b6850698f819de14765336936d1cf954376",
-    ".claude/skills/speckit-test-guard/references/phpunit.md": "996557d1ef2c13991cfb53487d6b5961bdf13fc3bb4002f3f9eeff9b281b7e53",
-    ".claude/skills/speckit-test-guard/references/pytest.md": "294e7fe7dadfae7d623625688237ef2a410610747ffb8d981af9ab567e1e2980"
+    ".claude/skills/speckit-verify/SKILL.md": "98fc1554286900808410f8904f709d8702d9012dc4a5b819d5dc7770211246e2"
   }
 }
