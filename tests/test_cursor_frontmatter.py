@@ -54,21 +54,17 @@ class TestScriptFrontmatterPattern:
     """Static analysis — no git required."""
 
     def test_create_new_has_mdc_frontmatter_logic(self):
-        """create_new_agent_file() must contain .mdc frontmatter logic."""
+        """update-agent-context.sh must contain .mdc frontmatter logic."""
         with open(SCRIPT_PATH, encoding="utf-8") as f:
             content = f.read()
-        assert 'if [[ "$target_file" == *.mdc ]]' in content
+        assert 'ctx_path.endswith(".mdc")' in content
         assert "alwaysApply: true" in content
 
     def test_update_existing_has_mdc_frontmatter_logic(self):
-        """update_existing_agent_file() must also handle .mdc frontmatter."""
+        """update-agent-context.sh must also handle .mdc frontmatter."""
         with open(SCRIPT_PATH, encoding="utf-8") as f:
             content = f.read()
-        # There should be two occurrences of the .mdc check — one per function
-        occurrences = content.count('if [[ "$target_file" == *.mdc ]]')
-        assert occurrences >= 2, (
-            f"Expected at least 2 .mdc frontmatter checks, found {occurrences}"
-        )
+        assert 'ctx_path.endswith(".mdc")' in content
 
     def test_powershell_script_has_mdc_frontmatter_logic(self):
         """PowerShell script must also handle .mdc frontmatter."""
@@ -84,10 +80,7 @@ class TestScriptFrontmatterPattern:
         with open(ps_path, encoding="utf-8") as f:
             content = f.read()
         assert "alwaysApply: true" in content
-        occurrences = content.count(r"\.mdc$")
-        assert occurrences >= 2, (
-            f"Expected at least 2 .mdc frontmatter checks in PS script, found {occurrences}"
-        )
+        assert '$ContextFile.EndsWith(".mdc")' in content
 
 
 @requires_git

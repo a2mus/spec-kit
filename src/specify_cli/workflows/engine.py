@@ -94,7 +94,7 @@ def _get_valid_step_types() -> set[str]:
     if STEP_REGISTRY:
         return set(STEP_REGISTRY.keys())
     return {
-        "command", "shell", "prompt", "gate", "if",
+        "command", "shell", "prompt", "gate", "if", "init",
         "switch", "while", "do-while", "fan-out", "fan-in",
     }
 
@@ -676,6 +676,7 @@ class WorkflowEngine:
 
             # Record step results — prefer resolved values from step output
             step_data = {
+                "type": step_type,
                 "integration": result.output.get("integration")
                 or step_config.get("integration")
                 or context.default_integration,

@@ -92,7 +92,7 @@ def test_install_guard_rules_skills_agent(tmp_path):
     
     content = (skills_dir / "speckit-clean-code-guard" / "SKILL.md").read_text(encoding="utf-8")
     assert "alwaysApply: true" in content
-    assert "name: clean-code-guard" in content
+    assert "name: speckit-clean-code-guard" in content
 
 
 def test_install_guard_rules_is_additive(tmp_path):

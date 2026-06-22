@@ -214,6 +214,7 @@ class TestGenericIntegration:
         [
             "analyze",
             "clarify",
+            "converge",
             "implement",
             "plan",
             "checklist",

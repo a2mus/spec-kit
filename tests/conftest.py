@@ -1,12 +1,24 @@
 """Shared test helpers for the Spec Kit test suite."""
 
 import os
+from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
 
 import pytest
+
+# Prevent Git from traversing up to the user's home directory and detecting
+# a parent repository during tests (common on Windows environments).
+try:
+    _home = Path.home().resolve()
+    _ceilings = [str(_home)]
+    if _home.parent:
+        _ceilings.append(str(_home.parent.resolve()))
+    os.environ["GIT_CEILING_DIRECTORIES"] = os.path.pathsep.join(_ceilings)
+except Exception:
+    pass
 
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
