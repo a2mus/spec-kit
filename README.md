@@ -21,6 +21,7 @@
 
 - [🤔 What is Spec-Driven Development?](#-what-is-spec-driven-development)
 - [⚡ Get Started](#-get-started)
+- [🔀 Fork Maintenance](#-fork-maintenance)
 - [📽️ Video Overview](#️-video-overview)
 - [🌍 Community](#-community)
 - [🤖 Supported AI Coding Agent Integrations](#-supported-ai-coding-agent-integrations)
@@ -151,6 +152,12 @@ Use **`/speckit.implement`** to execute all tasks and build your feature accordi
 ```
 
 For detailed step-by-step instructions, see our [comprehensive guide](./spec-driven.md).
+
+## 🔀 Fork Maintenance
+
+This repository is a customized fork of `github/spec-kit`. To ensure seamless upstream synchronization and avoid merge conflicts, runtime-generated assets and agent-specific files (e.g., local agent commands, templates, scripts, and context files under `.specify/`, `.agents/`, `.claude/`, and `CLAUDE.md`) are untracked. Only core configuration files remain tracked.
+
+When setting up a fresh clone, you must regenerate these runtime assets locally. For detailed instructions on cloning, local initialization, verification, and rollback procedures, refer to the [Fork Setup & Developer Guide](./docs/fork-setup.md).
 
 ## 📽️ Video Overview
 

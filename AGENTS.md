@@ -185,8 +185,11 @@ context_file: CLAUDE.md
 
 # Delimiters for the managed Spec Kit section
 context_markers:
-  start: "<!-- SPECKIT START -->"
-  end: "<!-- SPECKIT END -->"
+  start: "<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->
+"
 ```
 
 - `context_file` is written automatically from the integration's class attribute when `specify init` or `specify integration use` is run.
@@ -444,3 +447,9 @@ When an issue exists, include its number immediately after the prefix — this i
 ---
 
 *This documentation should be updated whenever new integrations are added to maintain accuracy and completeness.*
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+at `specs/002-clean-runtime-artifacts/plan.md`
+<!-- SPECKIT END -->
