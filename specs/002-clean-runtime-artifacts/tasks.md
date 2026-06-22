@@ -108,11 +108,11 @@ This feature modifies repository configuration and documentation only — no sou
 
 **Purpose**: Final commit, end-to-end verification, and cleanup
 
-- [ ] T028 Stage all changes with `git add .gitignore README.md docs/fork-setup.md` and create a single atomic commit with the message from plan.md Phase E.1
-- [ ] T029 Run full verification script from plan.md (runtime paths untracked, config files tracked, ponytail tracked, AGENTS.md tracked, local files on disk, restore tag exists)
-- [ ] T030 Run upstream merge compatibility test: `git fetch upstream main && git merge upstream/main --no-commit --no-ff`, check for zero conflicts on runtime paths, then `git merge --abort` (SC-001)
-- [ ] T031 Verify README fork-maintenance section is visible within one screen of the repository front page (SC-006)
-- [ ] T032 Push branch to origin with `git push origin 002-clean-runtime-artifacts`
+- [x] T028 Stage all changes with `git add .gitignore README.md docs/fork-setup.md` and create a single atomic commit with the message from plan.md Phase E.1
+- [x] T029 Run full verification script from plan.md (runtime paths untracked, config files tracked, ponytail tracked, AGENTS.md tracked, local files on disk, restore tag exists)
+- [x] T030 Run upstream merge compatibility test: `git fetch upstream main && git merge upstream/main --no-commit --no-ff`, check for zero conflicts on runtime paths, then `git merge --abort` (SC-001)
+- [x] T031 Verify README fork-maintenance section is visible within one screen of the repository front page (SC-006)
+- [x] T032 Push branch to origin with `git push origin 002-clean-runtime-artifacts`
 
 ---
 
